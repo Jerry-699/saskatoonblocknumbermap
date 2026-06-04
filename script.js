@@ -209,9 +209,18 @@ async function checkBlock(lat, lon) {
 
   if (marker) map.removeLayer(marker);
 
-  marker = L.marker([lat, lon]).addTo(map)
-    .bindPopup(`${block} ${info.road}`)
-    .openPopup();
+let labelText = info.house
+  ? `${info.house}<br>${block} ${info.road}`
+  : `${block}<br>${info.road}`;
+
+marker = L.marker([lat, lon], {
+  icon: L.divIcon({
+    className: "house-label",
+    html: labelText,
+    iconSize: [130, 50],
+    iconAnchor: [65, 25]
+  })
+}).addTo(map);
 
   map.setView([lat, lon], 17);
 }
