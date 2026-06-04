@@ -1,45 +1,3 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-}
-
-.panel {
-  padding: 10px;
-  background: white;
-  z-index: 1000;
-}
-
-h2 {
-  margin: 5px 0;
-}
-
-button, input {
-  padding: 11px;
-  margin: 4px;
-  font-size: 16px;
-  border-radius: 8px;
-  border: 1px solid #aaa;
-}
-
-input {
-  width: calc(100% - 25px);
-  max-width: 450px;
-}
-
-#result {
-  margin-top: 8px;
-  padding: 10px;
-  background: #fff3c4;
-  font-size: 17px;
-  font-weight: bold;
-  border-radius: 8px;
-}
-
-#map {
-  height: calc(100vh - 210px);
-  width: 100%;
-}
-
 .dark {
   background: #111;
   color: white;
@@ -51,6 +9,7 @@ input {
 
 .dark #result {
   background: #2b2b2b;
+  color: white;
 }
 
 .dark button,
