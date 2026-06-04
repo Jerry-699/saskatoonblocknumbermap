@@ -8,91 +8,96 @@ let marker;
 
 function getBlockRange(number) {
   number = parseInt(number);
-
-  if (isNaN(number)) {
-    return "Block number not found";
-  }
+  if (isNaN(number)) return "Block unknown";
 
   let start = Math.floor(number / 100) * 100;
   let end = start + 99;
-
   return `${start}-${end}`;
 }
 
-function showResult(lat, lon, address) {
-  let houseNumber = address.house_number;
-  let road = address.road || address.street || address.pedestrian || "Unknown street";
-  let city = address.city || address.town || address.village || "Saskatoon";
+async function getRoadName(lat, lon) {
+  const url =
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1`;
 
-  let blockRange = getBlockRange(houseNumber);
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const address = data.address || {};
+  return address.road || address.street || address.residential || address.pedestrian || null;
+}
+
+async function getNearbyAddressNumbers(lat, lon, roadName) {
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["addr:housenumber"]["addr:street"="${roadName}"](around:250,${lat},${lon});
+      way["addr:housenumber"]["addr:street"="${roadName}"](around:250,${lat},${lon});
+      relation["addr:housenumber"]["addr:street"="${roadName}"](around:250,${lat},${lon});
+    );
+    out center tags;
+  `;
+
+  const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  let numbers = [];
+
+  data.elements.forEach(item => {
+    if (item.tags && item.tags["addr:housenumber"]) {
+      let num = parseInt(item.tags["addr:housenumber"]);
+      if (!isNaN(num)) numbers.push(num);
+    }
+  });
+
+  return numbers;
+}
+
+async function findBlockFromClick(lat, lon) {
+  document.getElementById("result").innerHTML = "Checking street block...";
+
+  const roadName = await getRoadName(lat, lon);
+
+  if (!roadName) {
+    document.getElementById("result").innerHTML =
+      "Street name not found. Try clicking closer to the road.";
+    return;
+  }
+
+  const numbers = await getNearbyAddressNumbers(lat, lon, roadName);
+
+  let blockText = "Block unknown";
+
+  if (numbers.length > 0) {
+    numbers.sort((a, b) => a - b);
+
+    let closestNumber = numbers[0];
+    let smallestDiff = Math.abs(numbers[0] - numbers[0]);
+
+    numbers.forEach(num => {
+      let diff = Math.abs(num - numbers[0]);
+      if (diff < smallestDiff) {
+        smallestDiff = diff;
+        closestNumber = num;
+      }
+    });
+
+    blockText = getBlockRange(closestNumber);
+  }
 
   document.getElementById("result").innerHTML =
-    `Street: ${road}<br>
-     Address number: ${houseNumber || "Not found"}<br>
-     Block: ${blockRange} ${road}<br>
-     City: ${city}`;
+    `Street: ${roadName}<br>
+     Block: ${blockText} ${roadName}<br>
+     Nearby address numbers found: ${numbers.join(", ") || "None"}`;
 
   if (marker) map.removeLayer(marker);
 
   marker = L.marker([lat, lon]).addTo(map)
-    .bindPopup(`${blockRange} ${road}`)
+    .bindPopup(`${blockText} ${roadName}`)
     .openPopup();
-
-  map.setView([lat, lon], 17);
 }
 
-async function reverseGeocode(lat, lon) {
-  let url =
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1`;
-
-  let response = await fetch(url);
-  let data = await response.json();
-
-  if (!data.address) {
-    document.getElementById("result").innerHTML = "No address found here.";
-    return;
-  }
-
-  showResult(lat, lon, data.address);
-}
-
-function useMyLocation() {
-  if (!navigator.geolocation) {
-    alert("Your browser does not support location.");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      let lat = position.coords.latitude;
-      let lon = position.coords.longitude;
-      reverseGeocode(lat, lon);
-    },
-    () => {
-      alert("Location permission denied.");
-    }
-  );
-}
-
-async function searchAddress() {
-  let query = document.getElementById("searchBox").value;
-
-  if (!query) {
-    alert("Type an address first.");
-    return;
-  }
-
-  let url =
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query + ", Saskatoon, Canada")}&addressdetails=1&limit=1`;
-
-  let response = await fetch(url);
-  let data = await response.json();
-
-  if (data.length === 0) {
-    document.getElementById("result").innerHTML = "Address not found.";
-    return;
-  }
-
-  let place = data[0];
-  showResult(place.lat, place.lon, place.address);
-}
+map.on("click", function(e) {
+  findBlockFromClick(e.latlng.lat, e.latlng.lng);
+});
