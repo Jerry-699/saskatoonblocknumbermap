@@ -11,7 +11,30 @@ let marker;
 let dark = false;
 let cache = {};
 
-// route drawing layer
+// Fix map size
+setTimeout(() => {
+  map.invalidateSize();
+}, 500);
+
+// Night mode
+function toggleDark() {
+  dark = !dark;
+
+  document.body.classList.toggle("dark", dark);
+  localStorage.setItem("darkMode", dark ? "yes" : "no");
+
+  map.removeLayer(tileLayer);
+
+  tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+}
+
+if (localStorage.getItem("darkMode") === "yes") {
+  toggleDark();
+}
+
+// Drawing routes
 let drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
 
@@ -41,6 +64,7 @@ map.on(L.Draw.Event.CREATED, function (event) {
   drawnItems.addLayer(layer);
 
   let distance = calculateLineDistance(layer);
+
   document.getElementById("result").innerHTML =
     `Route drawn<br>Distance: ${distance.toFixed(2)} km`;
 });
@@ -56,28 +80,13 @@ function calculateLineDistance(layer) {
   return total / 1000;
 }
 
-// night mode
-function toggleDark() {
-  dark = !dark;
-
-  document.body.classList.toggle("dark", dark);
-  localStorage.setItem("darkMode", dark ? "yes" : "no");
-
-  map.removeLayer(tileLayer);
-
-  tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-}
-
-if (localStorage.getItem("darkMode") === "yes") {
-  dark = false;
-  toggleDark();
-}
-
+// Block calculation
 function blockRange(num) {
   num = parseInt(num);
-  if (isNaN(num)) return "Block unknown";
+
+  if (isNaN(num)) {
+    return "Block unknown";
+  }
 
   let start = Math.floor(num / 100) * 100;
   let end = start + 99;
@@ -103,7 +112,9 @@ async function reverseGeocode(lat, lon) {
 async function getNearbyAddressFast(lat, lon, roadName) {
   let key = roadName + "_" + lat.toFixed(3) + "_" + lon.toFixed(3);
 
-  if (cache[key]) return cache[key];
+  if (cache[key]) {
+    return cache[key];
+  }
 
   let query = `
     [out:json][timeout:8];
@@ -126,7 +137,9 @@ async function getNearbyAddressFast(lat, lon, roadName) {
 
     data.elements.forEach(el => {
       let n = parseInt(el.tags?.["addr:housenumber"]);
-      if (!isNaN(n)) numbers.push(n);
+      if (!isNaN(n)) {
+        numbers.push(n);
+      }
     });
 
     numbers.sort((a, b) => a - b);
@@ -164,7 +177,9 @@ async function checkBlock(lat, lon) {
      Block: ${block} ${info.road}<br>
      Address used: ${usedNumber}`;
 
-  if (marker) map.removeLayer(marker);
+  if (marker) {
+    map.removeLayer(marker);
+  }
 
   marker = L.marker([lat, lon]).addTo(map)
     .bindPopup(`${block} ${info.road}`)
@@ -173,17 +188,32 @@ async function checkBlock(lat, lon) {
   map.setView([lat, lon], 17);
 }
 
-map.on("click", e => {
+map.on("click", function (e) {
   checkBlock(e.latlng.lat, e.latlng.lng);
 });
 
+// My location
 function useMyLocation() {
+  if (!navigator.geolocation) {
+    alert("Your browser does not support location.");
+    return;
+  }
+
   navigator.geolocation.getCurrentPosition(
-    pos => checkBlock(pos.coords.latitude, pos.coords.longitude),
-    () => alert("Please allow location permission.")
+    pos => {
+      let lat = pos.coords.latitude;
+      let lon = pos.coords.longitude;
+
+      map.setView([lat, lon], 17);
+      checkBlock(lat, lon);
+    },
+    () => {
+      alert("Please allow location permission.");
+    }
   );
 }
 
+// Search
 async function searchPlace() {
   let text = document.getElementById("searchBox").value.trim();
 
@@ -203,5 +233,9 @@ async function searchPlace() {
     return;
   }
 
-  checkBlock(parseFloat(data[0].lat), parseFloat(data[0].lon));
+  let lat = parseFloat(data[0].lat);
+  let lon = parseFloat(data[0].lon);
+
+  map.setView([lat, lon], 17);
+  checkBlock(lat, lon);
 }
