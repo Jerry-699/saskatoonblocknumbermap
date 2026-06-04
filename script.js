@@ -11,10 +11,56 @@ let marker;
 let dark = false;
 let cache = {};
 
+// route drawing layer
+let drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+let drawControl = new L.Control.Draw({
+  draw: {
+    polygon: false,
+    rectangle: false,
+    circle: false,
+    circlemarker: false,
+    marker: false,
+    polyline: {
+      shapeOptions: {
+        weight: 5
+      }
+    }
+  },
+  edit: {
+    featureGroup: drawnItems,
+    remove: true
+  }
+});
+
+map.addControl(drawControl);
+
+map.on(L.Draw.Event.CREATED, function (event) {
+  let layer = event.layer;
+  drawnItems.addLayer(layer);
+
+  let distance = calculateLineDistance(layer);
+  document.getElementById("result").innerHTML =
+    `Route drawn<br>Distance: ${distance.toFixed(2)} km`;
+});
+
+function calculateLineDistance(layer) {
+  let points = layer.getLatLngs();
+  let total = 0;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    total += points[i].distanceTo(points[i + 1]);
+  }
+
+  return total / 1000;
+}
+
+// night mode
 function toggleDark() {
   dark = !dark;
-  document.body.classList.toggle("dark");
 
+  document.body.classList.toggle("dark", dark);
   localStorage.setItem("darkMode", dark ? "yes" : "no");
 
   map.removeLayer(tileLayer);
@@ -25,6 +71,7 @@ function toggleDark() {
 }
 
 if (localStorage.getItem("darkMode") === "yes") {
+  dark = false;
   toggleDark();
 }
 
@@ -34,6 +81,7 @@ function blockRange(num) {
 
   let start = Math.floor(num / 100) * 100;
   let end = start + 99;
+
   return `${start}-${end}`;
 }
 
@@ -70,14 +118,10 @@ async function getNearbyAddressFast(lat, lon, roadName) {
     "https://overpass-api.de/api/interpreter?data=" +
     encodeURIComponent(query);
 
-  let controller = new AbortController();
-  let timeout = setTimeout(() => controller.abort(), 5000);
-
   try {
-    let res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-
+    let res = await fetch(url);
     let data = await res.json();
+
     let numbers = [];
 
     data.elements.forEach(el => {
@@ -86,10 +130,9 @@ async function getNearbyAddressFast(lat, lon, roadName) {
     });
 
     numbers.sort((a, b) => a - b);
-
     cache[key] = numbers;
-    return numbers;
 
+    return numbers;
   } catch {
     return [];
   }
