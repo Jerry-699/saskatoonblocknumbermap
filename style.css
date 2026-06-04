@@ -37,11 +37,10 @@ input {
 }
 
 #map {
-  height: calc(100vh - 220px);
+  height: 70vh;
   width: 100%;
 }
 
-/* Night mode */
 body.dark {
   background: #111;
   color: white;
