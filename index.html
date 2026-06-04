@@ -4,9 +4,71 @@
   <title>Street Block Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="style.css">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      color: #111;
+    }
+
+    .panel {
+      padding: 10px;
+      background: white;
+    }
+
+    button, input {
+      padding: 10px;
+      margin: 3px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+    }
+
+    input {
+      width: 250px;
+      max-width: 90%;
+    }
+
+    #result {
+      margin-top: 8px;
+      padding: 10px;
+      background: #fff3c4;
+      font-weight: bold;
+      border-radius: 8px;
+    }
+
+    #map {
+      height: 75vh;
+      width: 100%;
+      background: #ddd;
+    }
+
+    body.dark {
+      background: #111;
+      color: white;
+    }
+
+    body.dark .panel {
+      background: #1d1d1d;
+    }
+
+    body.dark #result {
+      background: #2b2b2b;
+      color: white;
+    }
+
+    body.dark button,
+    body.dark input {
+      background: #333;
+      color: white;
+      border: 1px solid #666;
+    }
+  </style>
 </head>
 
 <body>
@@ -19,15 +81,207 @@
     <button onclick="finishRoute()">✅ Finish Route</button>
     <button onclick="clearRoute()">🗑 Clear Route</button>
 
-    <input id="searchBox" placeholder="Search street/address in Saskatoon">
+    <input id="searchBox" placeholder="Search street/address">
     <button onclick="searchPlace()">Search</button>
 
-    <div id="result">Tap a street to find block. Use Start Route to draw lines.</div>
+    <div id="result">Tap a street to find block. Use Start Route to draw.</div>
   </div>
 
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="script.js"></script>
+
+  <script>
+    let map = L.map("map").setView([52.1332, -106.6700], 12);
+
+    let lightTiles = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+    let darkTiles = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+
+    let tileLayer = L.tileLayer(lightTiles, {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    let marker;
+    let dark = false;
+    let drawingRoute = false;
+    let routePoints = [];
+    let routeLine = null;
+    let routeMarkers = [];
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
+
+    function toggleDark() {
+      dark = !dark;
+      document.body.classList.toggle("dark", dark);
+
+      map.removeLayer(tileLayer);
+
+      tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+    }
+
+    function startRoute() {
+      drawingRoute = true;
+      routePoints = [];
+      clearRouteOnly();
+
+      document.getElementById("result").innerHTML =
+        "Route mode ON. Tap points on map.";
+    }
+
+    function finishRoute() {
+      drawingRoute = false;
+      let distance = getRouteDistance();
+
+      document.getElementById("result").innerHTML =
+        `Route finished<br>Distance: ${distance.toFixed(2)} km`;
+    }
+
+    function clearRouteOnly() {
+      if (routeLine) map.removeLayer(routeLine);
+      routeMarkers.forEach(m => map.removeLayer(m));
+      routeLine = null;
+      routeMarkers = [];
+    }
+
+    function clearRoute() {
+      drawingRoute = false;
+      routePoints = [];
+      clearRouteOnly();
+
+      document.getElementById("result").innerHTML =
+        "Route cleared. Tap street to find block.";
+    }
+
+    function addRoutePoint(lat, lon) {
+      let point = L.latLng(lat, lon);
+      routePoints.push(point);
+
+      let dot = L.circleMarker(point, { radius: 5 }).addTo(map);
+      routeMarkers.push(dot);
+
+      if (routeLine) map.removeLayer(routeLine);
+
+      routeLine = L.polyline(routePoints, { weight: 5 }).addTo(map);
+
+      let distance = getRouteDistance();
+
+      document.getElementById("result").innerHTML =
+        `Drawing route...<br>Distance: ${distance.toFixed(2)} km`;
+    }
+
+    function getRouteDistance() {
+      let total = 0;
+
+      for (let i = 0; i < routePoints.length - 1; i++) {
+        total += routePoints[i].distanceTo(routePoints[i + 1]);
+      }
+
+      return total / 1000;
+    }
+
+    function blockRange(num) {
+      num = parseInt(num);
+      if (isNaN(num)) return "Block unknown";
+
+      let start = Math.floor(num / 100) * 100;
+      let end = start + 99;
+      return `${start}-${end}`;
+    }
+
+    async function reverseGeocode(lat, lon) {
+      let url =
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`;
+
+      let res = await fetch(url);
+      let data = await res.json();
+
+      let a = data.address || {};
+
+      return {
+        road: a.road || a.street || a.residential || a.pedestrian || "Street unknown",
+        house: a.house_number || null
+      };
+    }
+
+    async function checkBlock(lat, lon) {
+      document.getElementById("result").innerHTML = "Checking...";
+
+      try {
+        let info = await reverseGeocode(lat, lon);
+
+        let block = info.house ? blockRange(info.house) : "Block unknown";
+
+        document.getElementById("result").innerHTML =
+          `Street: ${info.road}<br>
+           Block: ${block} ${info.road}<br>
+           Address used: ${info.house || "Not found"}`;
+
+        if (marker) map.removeLayer(marker);
+
+        marker = L.marker([lat, lon]).addTo(map)
+          .bindPopup(`${block} ${info.road}`)
+          .openPopup();
+
+        map.setView([lat, lon], 17);
+
+      } catch (error) {
+        document.getElementById("result").innerHTML =
+          "Error loading address. Try again.";
+      }
+    }
+
+    map.on("click", function(e) {
+      let lat = e.latlng.lat;
+      let lon = e.latlng.lng;
+
+      if (drawingRoute) {
+        addRoutePoint(lat, lon);
+      } else {
+        checkBlock(lat, lon);
+      }
+    });
+
+    function useMyLocation() {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          let lat = pos.coords.latitude;
+          let lon = pos.coords.longitude;
+          map.setView([lat, lon], 17);
+          checkBlock(lat, lon);
+        },
+        () => alert("Please allow location permission.")
+      );
+    }
+
+    async function searchPlace() {
+      let text = document.getElementById("searchBox").value.trim();
+
+      if (!text) {
+        alert("Type street or address first.");
+        return;
+      }
+
+      let url =
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(text + ", Saskatoon, Canada")}&limit=1`;
+
+      let res = await fetch(url);
+      let data = await res.json();
+
+      if (!data.length) {
+        document.getElementById("result").innerHTML = "Place not found.";
+        return;
+      }
+
+      let lat = parseFloat(data[0].lat);
+      let lon = parseFloat(data[0].lon);
+
+      map.setView([lat, lon], 17);
+      checkBlock(lat, lon);
+    }
+  </script>
 </body>
 </html>
