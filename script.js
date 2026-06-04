@@ -9,15 +9,23 @@ let tileLayer = L.tileLayer(lightTiles, {
 
 let marker;
 let dark = false;
+let cache = {};
 
 function toggleDark() {
   dark = !dark;
   document.body.classList.toggle("dark");
+
+  localStorage.setItem("darkMode", dark ? "yes" : "no");
+
   map.removeLayer(tileLayer);
 
   tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
+}
+
+if (localStorage.getItem("darkMode") === "yes") {
+  toggleDark();
 }
 
 function blockRange(num) {
@@ -29,126 +37,97 @@ function blockRange(num) {
   return `${start}-${end}`;
 }
 
-function distanceMeters(lat1, lon1, lat2, lon2) {
-  let R = 6371000;
-  let dLat = (lat2 - lat1) * Math.PI / 180;
-  let dLon = (lon2 - lon1) * Math.PI / 180;
+async function reverseGeocode(lat, lon) {
+  let url =
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`;
 
-  let a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-async function getNearestRoad(lat, lon) {
-  let query = `
-    [out:json][timeout:25];
-    way["highway"]["name"](around:40,${lat},${lon});
-    out geom tags;
-  `;
-
-  let url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
   let res = await fetch(url);
   let data = await res.json();
 
-  if (!data.elements || data.elements.length === 0) return null;
+  let a = data.address || {};
 
-  let bestRoad = null;
-  let bestDistance = Infinity;
-
-  data.elements.forEach(way => {
-    if (!way.geometry || !way.tags.name) return;
-
-    way.geometry.forEach(point => {
-      let d = distanceMeters(lat, lon, point.lat, point.lon);
-      if (d < bestDistance) {
-        bestDistance = d;
-        bestRoad = {
-          name: way.tags.name,
-          type: way.tags.highway,
-          distance: d
-        };
-      }
-    });
-  });
-
-  return bestRoad;
+  return {
+    road: a.road || a.street || a.residential || a.pedestrian || "Street unknown",
+    house: a.house_number || null
+  };
 }
 
-async function getNearbyAddresses(lat, lon, streetName) {
+async function getNearbyAddressFast(lat, lon, roadName) {
+  let key = roadName + "_" + lat.toFixed(3) + "_" + lon.toFixed(3);
+
+  if (cache[key]) return cache[key];
+
   let query = `
-    [out:json][timeout:25];
+    [out:json][timeout:8];
     (
-      node["addr:housenumber"]["addr:street"="${streetName}"](around:500,${lat},${lon});
-      way["addr:housenumber"]["addr:street"="${streetName}"](around:500,${lat},${lon});
-      relation["addr:housenumber"]["addr:street"="${streetName}"](around:500,${lat},${lon});
+      node["addr:housenumber"]["addr:street"="${roadName}"](around:180,${lat},${lon});
+      way["addr:housenumber"]["addr:street"="${roadName}"](around:180,${lat},${lon});
     );
-    out center tags;
+    out center tags 20;
   `;
 
-  let url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(query);
-  let res = await fetch(url);
-  let data = await res.json();
+  let url =
+    "https://overpass-api.de/api/interpreter?data=" +
+    encodeURIComponent(query);
 
-  let list = [];
+  let controller = new AbortController();
+  let timeout = setTimeout(() => controller.abort(), 5000);
 
-  data.elements.forEach(el => {
-    let raw = el.tags?.["addr:housenumber"];
-    let num = parseInt(raw);
-    let aLat = el.lat || el.center?.lat;
-    let aLon = el.lon || el.center?.lon;
+  try {
+    let res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
 
-    if (!isNaN(num) && aLat && aLon) {
-      list.push({
-        number: num,
-        distance: distanceMeters(lat, lon, aLat, aLon)
-      });
-    }
-  });
+    let data = await res.json();
+    let numbers = [];
 
-  list.sort((a, b) => a.distance - b.distance);
-  return list;
+    data.elements.forEach(el => {
+      let n = parseInt(el.tags?.["addr:housenumber"]);
+      if (!isNaN(n)) numbers.push(n);
+    });
+
+    numbers.sort((a, b) => a - b);
+
+    cache[key] = numbers;
+    return numbers;
+
+  } catch {
+    return [];
+  }
 }
 
 async function checkBlock(lat, lon) {
   document.getElementById("result").innerHTML = "Checking...";
 
-  try {
-    let road = await getNearestRoad(lat, lon);
+  let info = await reverseGeocode(lat, lon);
 
-    if (!road) {
-      document.getElementById("result").innerHTML =
-        "No street found. Tap closer to the road.";
-      return;
+  let block = "Block unknown";
+  let usedNumber = "Not found";
+
+  if (info.house) {
+    block = blockRange(info.house);
+    usedNumber = info.house;
+  } else {
+    let nums = await getNearbyAddressFast(lat, lon, info.road);
+
+    if (nums.length > 0) {
+      let middle = nums[Math.floor(nums.length / 2)];
+      block = blockRange(middle);
+      usedNumber = middle;
     }
-
-    let addresses = await getNearbyAddresses(lat, lon, road.name);
-
-    let nearestNumber = addresses.length ? addresses[0].number : null;
-    let block = nearestNumber ? blockRange(nearestNumber) : "Block unknown";
-
-    document.getElementById("result").innerHTML =
-      `Street: ${road.name}<br>
-       Block: ${block} ${road.name}<br>
-       Nearest address used: ${nearestNumber || "Not found"}<br>
-       Distance from road: ${Math.round(road.distance)} m`;
-
-    if (marker) map.removeLayer(marker);
-
-    marker = L.marker([lat, lon]).addTo(map)
-      .bindPopup(`${block} ${road.name}`)
-      .openPopup();
-
-    map.setView([lat, lon], 17);
-
-  } catch (err) {
-    document.getElementById("result").innerHTML =
-      "Error checking block. Try again.";
-    console.error(err);
   }
+
+  document.getElementById("result").innerHTML =
+    `Street: ${info.road}<br>
+     Block: ${block} ${info.road}<br>
+     Address used: ${usedNumber}`;
+
+  if (marker) map.removeLayer(marker);
+
+  marker = L.marker([lat, lon]).addTo(map)
+    .bindPopup(`${block} ${info.road}`)
+    .openPopup();
+
+  map.setView([lat, lon], 17);
 }
 
 map.on("click", e => {
@@ -157,11 +136,7 @@ map.on("click", e => {
 
 function useMyLocation() {
   navigator.geolocation.getCurrentPosition(
-    pos => {
-      let lat = pos.coords.latitude;
-      let lon = pos.coords.longitude;
-      checkBlock(lat, lon);
-    },
+    pos => checkBlock(pos.coords.latitude, pos.coords.longitude),
     () => alert("Please allow location permission.")
   );
 }
@@ -185,9 +160,5 @@ async function searchPlace() {
     return;
   }
 
-  let lat = parseFloat(data[0].lat);
-  let lon = parseFloat(data[0].lon);
-
-  map.setView([lat, lon], 17);
-  checkBlock(lat, lon);
+  checkBlock(parseFloat(data[0].lat), parseFloat(data[0].lon));
 }
