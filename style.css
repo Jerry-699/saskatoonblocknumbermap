@@ -64,3 +64,21 @@ body.dark input {
   color: white;
   border: 1px solid #666;
 }
+
+.house-label {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  border: 2px solid #111;
+  border-radius: 8px;
+  padding: 5px;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+body.dark .house-label {
+  background: rgba(255, 255, 255, 0.95);
+  color: #000;
+  border: 2px solid #fff;
+}
