@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Block Finder</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Street Block Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h2>Block Finder</h2>
+  <div class="panel">
+    <h2>Street Block Finder</h2>
+    <button onclick="useMyLocation()">📍 My Location</button>
+    <button onclick="toggleDark()">🌙 Night Mode</button>
+    <input id="searchBox" placeholder="Search street/address in Saskatoon">
+    <button onclick="searchPlace()">Search</button>
+    <div id="result">Tap on any street.</div>
+  </div>
 
-  <button onclick="useMyLocation()">Use My Location</button>
-
-  <input id="searchBox" placeholder="Type address or street">
-  <button onclick="searchAddress()">Search</button>
-
-  <div id="result">Result will show here</div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
