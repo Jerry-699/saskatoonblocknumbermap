@@ -21,7 +21,7 @@
       background: white;
     }
 
-    button, input {
+    button, input, select {
       padding: 10px;
       margin: 3px;
       font-size: 15px;
@@ -63,7 +63,8 @@
     }
 
     body.dark button,
-    body.dark input {
+    body.dark input,
+    body.dark select {
       background: #333;
       color: white;
       border: 1px solid #666;
@@ -80,6 +81,16 @@
     <button onclick="startRoute()">✏️ Start Route</button>
     <button onclick="finishRoute()">✅ Finish Route</button>
     <button onclick="clearRoute()">🗑 Clear Route</button>
+
+    <select id="routeColor">
+      <option value="#ff4d4d">Light Red</option>
+      <option value="#4da6ff">Light Blue</option>
+      <option value="#66ff99">Light Green</option>
+      <option value="#ffff66">Light Yellow</option>
+      <option value="#ff99ff">Light Pink</option>
+      <option value="#ffb84d">Light Orange</option>
+      <option value="#ffffff">White</option>
+    </select>
 
     <input id="searchBox" placeholder="Search street/address">
     <button onclick="searchPlace()">Search</button>
@@ -123,6 +134,10 @@
       }).addTo(map);
     }
 
+    function getSelectedRouteColor() {
+      return document.getElementById("routeColor").value;
+    }
+
     function startRoute() {
       drawingRoute = true;
       routePoints = [];
@@ -160,12 +175,22 @@
       let point = L.latLng(lat, lon);
       routePoints.push(point);
 
-      let dot = L.circleMarker(point, { radius: 5 }).addTo(map);
+      let dot = L.circleMarker(point, {
+        radius: 5,
+        color: getSelectedRouteColor(),
+        fillColor: getSelectedRouteColor(),
+        fillOpacity: 0.7
+      }).addTo(map);
+
       routeMarkers.push(dot);
 
       if (routeLine) map.removeLayer(routeLine);
 
-      routeLine = L.polyline(routePoints, { weight: 5 }).addTo(map);
+      routeLine = L.polyline(routePoints, {
+        color: getSelectedRouteColor(),
+        weight: 6,
+        opacity: 0.45
+      }).addTo(map);
 
       let distance = getRouteDistance();
 
