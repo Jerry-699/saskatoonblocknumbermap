@@ -11,15 +11,17 @@ let marker;
 let dark = false;
 let cache = {};
 
-// Fix map size
+let drawingRoute = false;
+let routePoints = [];
+let routeLine = null;
+let routeMarkers = [];
+
 setTimeout(() => {
   map.invalidateSize();
 }, 500);
 
-// Night mode
 function toggleDark() {
   dark = !dark;
-
   document.body.classList.toggle("dark", dark);
   localStorage.setItem("darkMode", dark ? "yes" : "no");
 
@@ -34,59 +36,77 @@ if (localStorage.getItem("darkMode") === "yes") {
   toggleDark();
 }
 
-// Drawing routes
-let drawnItems = new L.FeatureGroup();
-map.addLayer(drawnItems);
+function startRoute() {
+  drawingRoute = true;
+  routePoints = [];
 
-let drawControl = new L.Control.Draw({
-  draw: {
-    polygon: false,
-    rectangle: false,
-    circle: false,
-    circlemarker: false,
-    marker: false,
-    polyline: {
-      shapeOptions: {
-        weight: 5
-      }
-    }
-  },
-  edit: {
-    featureGroup: drawnItems,
-    remove: true
-  }
-});
-
-map.addControl(drawControl);
-
-map.on(L.Draw.Event.CREATED, function (event) {
-  let layer = event.layer;
-  drawnItems.addLayer(layer);
-
-  let distance = calculateLineDistance(layer);
+  if (routeLine) map.removeLayer(routeLine);
+  routeMarkers.forEach(m => map.removeLayer(m));
+  routeMarkers = [];
 
   document.getElementById("result").innerHTML =
-    `Route drawn<br>Distance: ${distance.toFixed(2)} km`;
-});
+    "Route mode ON. Tap points on the map to draw your route.";
+}
 
-function calculateLineDistance(layer) {
-  let points = layer.getLatLngs();
+function finishRoute() {
+  drawingRoute = false;
+
+  let distance = getRouteDistance();
+
+  document.getElementById("result").innerHTML =
+    `Route finished<br>Distance: ${distance.toFixed(2)} km`;
+}
+
+function clearRoute() {
+  drawingRoute = false;
+  routePoints = [];
+
+  if (routeLine) map.removeLayer(routeLine);
+  routeMarkers.forEach(m => map.removeLayer(m));
+
+  routeLine = null;
+  routeMarkers = [];
+
+  document.getElementById("result").innerHTML =
+    "Route cleared. Tap a street to find block.";
+}
+
+function addRoutePoint(lat, lon) {
+  let point = L.latLng(lat, lon);
+  routePoints.push(point);
+
+  let dot = L.circleMarker(point, {
+    radius: 5
+  }).addTo(map);
+
+  routeMarkers.push(dot);
+
+  if (routeLine) map.removeLayer(routeLine);
+
+  routeLine = L.polyline(routePoints, {
+    weight: 5
+  }).addTo(map);
+
+  let distance = getRouteDistance();
+
+  document.getElementById("result").innerHTML =
+    `Drawing route...<br>Distance: ${distance.toFixed(2)} km`;
+}
+
+function getRouteDistance() {
   let total = 0;
 
-  for (let i = 0; i < points.length - 1; i++) {
-    total += points[i].distanceTo(points[i + 1]);
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    total += routePoints[i].distanceTo(routePoints[i + 1]);
   }
 
   return total / 1000;
 }
 
-// Block calculation
 function blockRange(num) {
   num = parseInt(num);
 
-  if (isNaN(num)) {
-    return "Block unknown";
-  }
+  if (isNaN(num)) return "Block unknown";
 
   let start = Math.floor(num / 100) * 100;
   let end = start + 99;
@@ -112,9 +132,7 @@ async function reverseGeocode(lat, lon) {
 async function getNearbyAddressFast(lat, lon, roadName) {
   let key = roadName + "_" + lat.toFixed(3) + "_" + lon.toFixed(3);
 
-  if (cache[key]) {
-    return cache[key];
-  }
+  if (cache[key]) return cache[key];
 
   let query = `
     [out:json][timeout:8];
@@ -137,9 +155,7 @@ async function getNearbyAddressFast(lat, lon, roadName) {
 
     data.elements.forEach(el => {
       let n = parseInt(el.tags?.["addr:housenumber"]);
-      if (!isNaN(n)) {
-        numbers.push(n);
-      }
+      if (!isNaN(n)) numbers.push(n);
     });
 
     numbers.sort((a, b) => a - b);
@@ -177,9 +193,7 @@ async function checkBlock(lat, lon) {
      Block: ${block} ${info.road}<br>
      Address used: ${usedNumber}`;
 
-  if (marker) {
-    map.removeLayer(marker);
-  }
+  if (marker) map.removeLayer(marker);
 
   marker = L.marker([lat, lon]).addTo(map)
     .bindPopup(`${block} ${info.road}`)
@@ -188,11 +202,17 @@ async function checkBlock(lat, lon) {
   map.setView([lat, lon], 17);
 }
 
-map.on("click", function (e) {
-  checkBlock(e.latlng.lat, e.latlng.lng);
+map.on("click", function(e) {
+  let lat = e.latlng.lat;
+  let lon = e.latlng.lng;
+
+  if (drawingRoute) {
+    addRoutePoint(lat, lon);
+  } else {
+    checkBlock(lat, lon);
+  }
 });
 
-// My location
 function useMyLocation() {
   if (!navigator.geolocation) {
     alert("Your browser does not support location.");
@@ -207,13 +227,10 @@ function useMyLocation() {
       map.setView([lat, lon], 17);
       checkBlock(lat, lon);
     },
-    () => {
-      alert("Please allow location permission.");
-    }
+    () => alert("Please allow location permission.")
   );
 }
 
-// Search
 async function searchPlace() {
   let text = document.getElementById("searchBox").value.trim();
 
