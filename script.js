@@ -1,7 +1,8 @@
 let map = L.map("map").setView([52.1332, -106.6700], 12);
 
 let lightTiles = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-let darkTiles = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+let darkTiles = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels_under/{z}/{x}/{y}{r}.png";
+let labelTiles = null;
 
 let tileLayer = L.tileLayer(lightTiles, {
   attribution: "&copy; OpenStreetMap contributors"
@@ -23,17 +24,30 @@ setTimeout(() => {
 function toggleDark() {
   dark = !dark;
   document.body.classList.toggle("dark", dark);
-  localStorage.setItem("darkMode", dark ? "yes" : "no");
 
   map.removeLayer(tileLayer);
 
-  tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-}
+  if (labelTiles) {
+    map.removeLayer(labelTiles);
+    labelTiles = null;
+  }
 
-if (localStorage.getItem("darkMode") === "yes") {
-  toggleDark();
+  if (dark) {
+    tileLayer = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels_under/{z}/{x}/{y}{r}.png",
+      { attribution: "&copy; OpenStreetMap contributors" }
+    ).addTo(map);
+
+    labelTiles = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      { attribution: "&copy; OpenStreetMap contributors", pane: "overlayPane" }
+    ).addTo(map);
+
+  } else {
+    tileLayer = L.tileLayer(lightTiles, {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+  }
 }
 
 function startRoute() {
