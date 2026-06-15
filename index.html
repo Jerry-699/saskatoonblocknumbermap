@@ -81,6 +81,33 @@
       font-weight: bold;
       text-align: center;
       box-shadow: 0 2px 6px black;
+      cursor: pointer;
+    }
+
+    .compass {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      color: black;
+      border: 2px solid #111;
+      border-radius: 50%;
+      width: 58px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      cursor: pointer;
+    }
+
+    body.dark .compass {
+      background: #222;
+      color: white;
+      border: 2px solid white;
     }
   </style>
 </head>
@@ -91,12 +118,11 @@
 
     <button onclick="useMyLocation()">📍 Accurate GPS</button>
     <button onclick="toggleDark()">🌙 Night Mode</button>
-    <button onclick="resetNorth()">🧭 Reset North</button>
 
     <br>
 
     <button onclick="startDraw()">✏️ Draw Route</button>
-    <button onclick="finishDraw()">✅ Finish Draw</button>
+    <button onclick="finishDraw()">✅ Finish Draw + Save</button>
     <button onclick="clearDraw()">🗑 Clear Draw</button>
 
     <br>
@@ -133,6 +159,7 @@
   </div>
 
   <div id="map"></div>
+  <div class="compass" id="compass" onclick="resetNorth()">N</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
@@ -183,10 +210,18 @@
     function resetNorth() {
       if (map.setBearing) {
         map.setBearing(0);
-      } else {
-        alert("Rotation is not supported on this browser.");
+        updateCompass();
       }
     }
+
+    function updateCompass() {
+      let bearing = map.getBearing ? map.getBearing() : 0;
+      document.getElementById("compass").style.transform =
+        `rotate(${-bearing}deg)`;
+    }
+
+    map.on("rotate", updateCompass);
+    map.on("move", updateCompass);
 
     function blockRange(num) {
       num = parseInt(num);
@@ -233,11 +268,16 @@
         marker = L.marker([lat, lon], {
           icon: L.divIcon({
             className: "labelBox",
-            html: `${info.house || ""}<br>${block}<br>${info.road}`,
-            iconSize: [160, 70],
-            iconAnchor: [80, 35]
+            html: `${info.house || ""}<br>${block}<br>${info.road}<br><small>Tap to close</small>`,
+            iconSize: [170, 85],
+            iconAnchor: [85, 42]
           })
         }).addTo(map);
+
+        marker.on("click", function () {
+          map.removeLayer(marker);
+          marker = null;
+        });
 
         map.setView([lat, lon], 18);
       } catch {
@@ -283,10 +323,6 @@
 
             map.setView([lat, lon], 18);
             checkBlock(lat, lon);
-
-            setTimeout(() => {
-              setResult(`Best GPS location found.<br>GPS accuracy: ±${acc} m`);
-            }, 900);
           }
         },
         () => alert("Allow location permission."),
@@ -307,7 +343,31 @@
 
     function finishDraw() {
       drawMode = false;
-      setResult(`Draw finished.<br>Distance: ${distanceKm(drawPoints).toFixed(2)} km`);
+
+      if (drawPoints.length < 2) {
+        alert("Draw at least 2 points first.");
+        return;
+      }
+
+      let name = prompt("Name this drawn route:");
+      if (!name) name = "Drawn Route";
+
+      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+
+      routes.push({
+        name: name,
+        date: new Date().toLocaleString(),
+        color: selectedColor(),
+        points: drawPoints.map(p => [p.lat, p.lng])
+      });
+
+      localStorage.setItem("routes", JSON.stringify(routes));
+      refreshRoutes();
+
+      setResult(
+        `Draw route saved: ${name}<br>
+         Distance: ${distanceKm(drawPoints).toFixed(2)} km`
+      );
     }
 
     function clearDrawOnly() {
@@ -540,146 +600,8 @@
 
     setTimeout(() => {
       map.invalidateSize();
+      updateCompass();
     }, 500);
-  </script>
-</body>
-</html>
-    function addRoutePoint(lat, lon) {
-      let point = L.latLng(lat, lon);
-      routePoints.push(point);
-
-      let dot = L.circleMarker(point, {
-        radius: 5,
-        color: getSelectedRouteColor(),
-        fillColor: getSelectedRouteColor(),
-        fillOpacity: 0.7
-      }).addTo(map);
-
-      routeMarkers.push(dot);
-
-      if (routeLine) map.removeLayer(routeLine);
-
-      routeLine = L.polyline(routePoints, {
-        color: getSelectedRouteColor(),
-        weight: 6,
-        opacity: 0.45
-      }).addTo(map);
-
-      let distance = getRouteDistance();
-
-      document.getElementById("result").innerHTML =
-        `Drawing route...<br>Distance: ${distance.toFixed(2)} km`;
-    }
-
-    function getRouteDistance() {
-      let total = 0;
-
-      for (let i = 0; i < routePoints.length - 1; i++) {
-        total += routePoints[i].distanceTo(routePoints[i + 1]);
-      }
-
-      return total / 1000;
-    }
-
-    function blockRange(num) {
-      num = parseInt(num);
-      if (isNaN(num)) return "Block unknown";
-
-      let start = Math.floor(num / 100) * 100;
-      let end = start + 99;
-      return `${start}-${end}`;
-    }
-
-    async function reverseGeocode(lat, lon) {
-      let url =
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`;
-
-      let res = await fetch(url);
-      let data = await res.json();
-
-      let a = data.address || {};
-
-      return {
-        road: a.road || a.street || a.residential || a.pedestrian || "Street unknown",
-        house: a.house_number || null
-      };
-    }
-
-    async function checkBlock(lat, lon) {
-      document.getElementById("result").innerHTML = "Checking...";
-
-      try {
-        let info = await reverseGeocode(lat, lon);
-
-        let block = info.house ? blockRange(info.house) : "Block unknown";
-
-        document.getElementById("result").innerHTML =
-          `Street: ${info.road}<br>
-           Block: ${block} ${info.road}<br>
-           Address used: ${info.house || "Not found"}`;
-
-        if (marker) map.removeLayer(marker);
-
-        marker = L.marker([lat, lon]).addTo(map)
-          .bindPopup(`${block} ${info.road}`)
-          .openPopup();
-
-        map.setView([lat, lon], 17);
-
-      } catch (error) {
-        document.getElementById("result").innerHTML =
-          "Error loading address. Try again.";
-      }
-    }
-
-    map.on("click", function(e) {
-      let lat = e.latlng.lat;
-      let lon = e.latlng.lng;
-
-      if (drawingRoute) {
-        addRoutePoint(lat, lon);
-      } else {
-        checkBlock(lat, lon);
-      }
-    });
-
-    function useMyLocation() {
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          let lat = pos.coords.latitude;
-          let lon = pos.coords.longitude;
-          map.setView([lat, lon], 17);
-          checkBlock(lat, lon);
-        },
-        () => alert("Please allow location permission.")
-      );
-    }
-
-    async function searchPlace() {
-      let text = document.getElementById("searchBox").value.trim();
-
-      if (!text) {
-        alert("Type street or address first.");
-        return;
-      }
-
-      let url =
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(text + ", Saskatoon, Canada")}&limit=1`;
-
-      let res = await fetch(url);
-      let data = await res.json();
-
-      if (!data.length) {
-        document.getElementById("result").innerHTML = "Place not found.";
-        return;
-      }
-
-      let lat = parseFloat(data[0].lat);
-      let lon = parseFloat(data[0].lon);
-
-      map.setView([lat, lon], 17);
-      checkBlock(lat, lon);
-    }
   </script>
 </body>
 </html>
