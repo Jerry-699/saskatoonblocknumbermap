@@ -1,6 +1,6 @@
-html, body {
+html,
+body {
   margin: 0;
-  padding: 0;
   height: 100%;
   font-family: Arial, sans-serif;
   background: #f4f4f4;
@@ -10,38 +10,44 @@ html, body {
 .panel {
   padding: 10px;
   background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 h2 {
-  margin: 5px 0;
+  margin: 5px 0 8px 0;
 }
 
-button, input {
-  padding: 10px;
+button,
+input,
+select {
+  padding: 9px;
   margin: 3px;
-  font-size: 15px;
+  font-size: 14px;
   border-radius: 8px;
   border: 1px solid #aaa;
 }
 
+button {
+  cursor: pointer;
+}
+
 input {
-  width: calc(100% - 25px);
-  max-width: 450px;
+  width: 250px;
+  max-width: 90%;
 }
 
 #result {
   margin-top: 8px;
   padding: 10px;
   background: #fff3c4;
-  font-size: 16px;
   font-weight: bold;
   border-radius: 8px;
+  line-height: 1.4;
 }
 
 #map {
-  height: 70vh;
+  height: 72vh;
   width: 100%;
-  background: #ddd;
 }
 
 body.dark {
@@ -59,26 +65,20 @@ body.dark #result {
 }
 
 body.dark button,
-body.dark input {
+body.dark input,
+body.dark select {
   background: #333;
   color: white;
   border: 1px solid #666;
 }
 
-.house-label {
-  background: rgba(255, 255, 255, 0.9);
-  color: #111;
+.labelBox {
+  background: rgba(255, 255, 255, 0.95);
+  color: #000;
   border: 2px solid #111;
   border-radius: 8px;
   padding: 5px;
-  font-size: 14px;
   font-weight: bold;
   text-align: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-
-body.dark .house-label {
-  background: rgba(255, 255, 255, 0.95);
-  color: #000;
-  border: 2px solid #fff;
+  box-shadow: 0 2px 6px #000;
 }
