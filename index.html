@@ -1,107 +1,65 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Street Block Finder</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saskatoon Block Finder</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      color: #111;
-    }
-
-    .panel {
-      padding: 10px;
-      background: white;
-    }
-
-    button, input, select {
-      padding: 10px;
-      margin: 3px;
-      font-size: 15px;
-      border-radius: 8px;
-      border: 1px solid #aaa;
-    }
-
-    input {
-      width: 250px;
-      max-width: 90%;
-    }
-
-    #result {
-      margin-top: 8px;
-      padding: 10px;
-      background: #fff3c4;
-      font-weight: bold;
-      border-radius: 8px;
-    }
-
-    #map {
-      height: 75vh;
-      width: 100%;
-      background: #ddd;
-    }
-
-    body.dark {
-      background: #111;
-      color: white;
-    }
-
-    body.dark .panel {
-      background: #1d1d1d;
-    }
-
-    body.dark #result {
-      background: #2b2b2b;
-      color: white;
-    }
-
-    body.dark button,
-    body.dark input,
-    body.dark select {
-      background: #333;
-      color: white;
-      border: 1px solid #666;
-    }
-  </style>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
   <div class="panel">
-    <h2>Street Block Finder</h2>
+    <h2>Saskatoon Block Finder</h2>
 
-    <button onclick="useMyLocation()">📍 My Location</button>
+    <button onclick="useMyLocation()">📍 Accurate GPS</button>
     <button onclick="toggleDark()">🌙 Night Mode</button>
-    <button onclick="startRoute()">✏️ Start Route</button>
-    <button onclick="finishRoute()">✅ Finish Route</button>
-    <button onclick="clearRoute()">🗑 Clear Route</button>
 
-    <select id="routeColor">
-      <option value="#ff4d4d">Light Red</option>
-      <option value="#4da6ff">Light Blue</option>
-      <option value="#66ff99">Light Green</option>
-      <option value="#ffff66">Light Yellow</option>
-      <option value="#ff99ff">Light Pink</option>
-      <option value="#ffb84d">Light Orange</option>
-      <option value="#ffffff">White</option>
+    <button onclick="startDraw()">✏️ Draw Route</button>
+    <button onclick="finishDraw()">✅ Finish Draw</button>
+    <button onclick="clearDraw()">🗑 Clear Draw</button>
+
+    <br />
+
+    <button onclick="startRecording()">🔴 Record</button>
+    <button onclick="pauseRecording()">⏸ Pause</button>
+    <button onclick="resumeRecording()">▶️ Resume</button>
+    <button onclick="stopRecording()">⏹ Stop</button>
+    <button onclick="saveRecording()">💾 Save</button>
+
+    <br />
+
+    <select id="color">
+      <option value="#4da6ff">Blue Route</option>
+      <option value="#ff4d4d">Red Route</option>
+      <option value="#66ff99">Green Route</option>
+      <option value="#ffff66">Yellow Route</option>
+      <option value="#ff99ff">Pink Route</option>
+      <option value="#ffb84d">Orange Route</option>
     </select>
 
-    <input id="searchBox" placeholder="Search street/address">
+    <select id="savedRoutes" onchange="loadRoute()">
+      <option value="">Select old route</option>
+    </select>
+
+    <button onclick="deleteRoute()">Delete Route</button>
+
+    <br />
+
+    <input id="searchBox" placeholder="Search street/address in Saskatoon" />
     <button onclick="searchPlace()">Search</button>
 
-    <div id="result">Tap a street to find block. Use Start Route to draw.</div>
+    <div id="result">Tap a street to see block number.</div>
   </div>
 
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+  <script src="script.js"></script>
+</body>
+</html>
   <script>
     let map = L.map("map").setView([52.1332, -106.6700], 12);
 
