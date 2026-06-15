@@ -1,13 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Saskatoon Block Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+    }
+
+    .panel {
+      padding: 10px;
+      background: white;
+    }
+
+    button, input, select {
+      padding: 9px;
+      margin: 3px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+    }
+
+    input {
+      width: 250px;
+      max-width: 90%;
+    }
+
+    #result {
+      margin-top: 8px;
+      padding: 10px;
+      background: #fff3c4;
+      font-weight: bold;
+      border-radius: 8px;
+    }
+
+    #map {
+      height: 72vh;
+      width: 100%;
+    }
+
+    body.dark {
+      background: #111;
+      color: white;
+    }
+
+    body.dark .panel {
+      background: #1d1d1d;
+    }
+
+    body.dark #result {
+      background: #2b2b2b;
+      color: white;
+    }
+
+    body.dark button,
+    body.dark input,
+    body.dark select {
+      background: #333;
+      color: white;
+      border: 1px solid #666;
+    }
+
+    body.dark #map .leaflet-tile {
+      filter: brightness(0.65) invert(1) contrast(2) hue-rotate(180deg) saturate(0.6);
+    }
+
+    .labelBox {
+      background: rgba(255,255,255,0.96);
+      color: black;
+      border: 2px solid black;
+      border-radius: 8px;
+      padding: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+      box-shadow: 0 2px 6px black;
+    }
+  </style>
 </head>
 
 <body>
@@ -16,12 +91,15 @@
 
     <button onclick="useMyLocation()">📍 Accurate GPS</button>
     <button onclick="toggleDark()">🌙 Night Mode</button>
+    <button onclick="resetNorth()">🧭 Reset North</button>
+
+    <br>
 
     <button onclick="startDraw()">✏️ Draw Route</button>
     <button onclick="finishDraw()">✅ Finish Draw</button>
     <button onclick="clearDraw()">🗑 Clear Draw</button>
 
-    <br />
+    <br>
 
     <button onclick="startRecording()">🔴 Record</button>
     <button onclick="pauseRecording()">⏸ Pause</button>
@@ -29,15 +107,15 @@
     <button onclick="stopRecording()">⏹ Stop</button>
     <button onclick="saveRecording()">💾 Save</button>
 
-    <br />
+    <br>
 
     <select id="color">
-      <option value="#4da6ff">Blue Route</option>
-      <option value="#ff4d4d">Red Route</option>
-      <option value="#66ff99">Green Route</option>
-      <option value="#ffff66">Yellow Route</option>
-      <option value="#ff99ff">Pink Route</option>
-      <option value="#ffb84d">Orange Route</option>
+      <option value="#4da6ff">Blue</option>
+      <option value="#ff4d4d">Red</option>
+      <option value="#66ff99">Green</option>
+      <option value="#ffff66">Yellow</option>
+      <option value="#ff99ff">Pink</option>
+      <option value="#ffb84d">Orange</option>
     </select>
 
     <select id="savedRoutes" onchange="loadRoute()">
@@ -46,9 +124,9 @@
 
     <button onclick="deleteRoute()">Delete Route</button>
 
-    <br />
+    <br>
 
-    <input id="searchBox" placeholder="Search street/address in Saskatoon" />
+    <input id="searchBox" placeholder="Search street/address in Saskatoon">
     <button onclick="searchPlace()">Search</button>
 
     <div id="result">Tap a street to see block number.</div>
@@ -57,78 +135,415 @@
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="script.js"></script>
-</body>
-</html>
+  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+
   <script>
-    let map = L.map("map").setView([52.1332, -106.6700], 12);
+    let map = L.map("map", {
+      rotate: true,
+      touchRotate: true,
+      bearing: 0
+    }).setView([52.1332, -106.6700], 12);
 
-    let lightTiles = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-    let darkTiles = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-
-    let tileLayer = L.tileLayer(lightTiles, {
-      attribution: "&copy; OpenStreetMap contributors"
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap",
+      maxZoom: 19
     }).addTo(map);
 
-    let marker;
     let dark = false;
-    let drawingRoute = false;
-    let routePoints = [];
-    let routeLine = null;
-    let routeMarkers = [];
+    let marker = null;
+    let accuracyCircle = null;
 
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 500);
+    let drawMode = false;
+    let drawPoints = [];
+    let drawLine = null;
+    let drawDots = [];
+
+    let recording = false;
+    let paused = false;
+    let watchId = null;
+    let recPoints = [];
+    let recLine = null;
+
+    let oldRouteLine = null;
+
+    function setResult(text) {
+      document.getElementById("result").innerHTML = text;
+    }
+
+    function selectedColor() {
+      return document.getElementById("color").value;
+    }
 
     function toggleDark() {
       dark = !dark;
       document.body.classList.toggle("dark", dark);
+      setResult(dark ? "Night mode ON." : "Night mode OFF.");
+    }
 
-      map.removeLayer(tileLayer);
+    function resetNorth() {
+      if (map.setBearing) {
+        map.setBearing(0);
+      } else {
+        alert("Rotation is not supported on this browser.");
+      }
+    }
 
-      tileLayer = L.tileLayer(dark ? darkTiles : lightTiles, {
-        attribution: "&copy; OpenStreetMap contributors"
+    function blockRange(num) {
+      num = parseInt(num);
+      if (isNaN(num)) return "Block unknown";
+      let start = Math.floor(num / 100) * 100;
+      return `${start}-${start + 99}`;
+    }
+
+    function distanceKm(points) {
+      let total = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        total += points[i].distanceTo(points[i + 1]);
+      }
+      return total / 1000;
+    }
+
+    async function reverseGeocode(lat, lon) {
+      let url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`;
+      let res = await fetch(url);
+      let data = await res.json();
+      let a = data.address || {};
+
+      return {
+        road: a.road || a.street || a.residential || a.pedestrian || "Street unknown",
+        house: a.house_number || null
+      };
+    }
+
+    async function checkBlock(lat, lon) {
+      setResult("Checking block...");
+
+      try {
+        let info = await reverseGeocode(lat, lon);
+        let block = info.house ? blockRange(info.house) : "Block unknown";
+
+        setResult(
+          `Street: ${info.road}<br>
+           Block: ${block} ${info.road}<br>
+           Address used: ${info.house || "Not found"}`
+        );
+
+        if (marker) map.removeLayer(marker);
+
+        marker = L.marker([lat, lon], {
+          icon: L.divIcon({
+            className: "labelBox",
+            html: `${info.house || ""}<br>${block}<br>${info.road}`,
+            iconSize: [160, 70],
+            iconAnchor: [80, 35]
+          })
+        }).addTo(map);
+
+        map.setView([lat, lon], 18);
+      } catch {
+        setResult("Address not found. Try closer to the street.");
+      }
+    }
+
+    function useMyLocation() {
+      if (!navigator.geolocation) {
+        alert("GPS not supported.");
+        return;
+      }
+
+      setResult("Getting best GPS accuracy... wait 5–10 seconds.");
+
+      let best = null;
+      let tries = 0;
+
+      let tempWatch = navigator.geolocation.watchPosition(
+        pos => {
+          tries++;
+
+          if (!best || pos.coords.accuracy < best.coords.accuracy) {
+            best = pos;
+          }
+
+          setResult(`Improving GPS...<br>Accuracy now: ±${Math.round(pos.coords.accuracy)} m`);
+
+          if (pos.coords.accuracy <= 8 || tries >= 8) {
+            navigator.geolocation.clearWatch(tempWatch);
+
+            let lat = best.coords.latitude;
+            let lon = best.coords.longitude;
+            let acc = Math.round(best.coords.accuracy);
+
+            if (accuracyCircle) map.removeLayer(accuracyCircle);
+
+            accuracyCircle = L.circle([lat, lon], {
+              radius: acc,
+              weight: 1,
+              fillOpacity: 0.12
+            }).addTo(map);
+
+            map.setView([lat, lon], 18);
+            checkBlock(lat, lon);
+
+            setTimeout(() => {
+              setResult(`Best GPS location found.<br>GPS accuracy: ±${acc} m`);
+            }, 900);
+          }
+        },
+        () => alert("Allow location permission."),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000
+        }
+      );
+    }
+
+    function startDraw() {
+      drawMode = true;
+      drawPoints = [];
+      clearDrawOnly();
+      setResult("Draw mode ON. Tap points on map.");
+    }
+
+    function finishDraw() {
+      drawMode = false;
+      setResult(`Draw finished.<br>Distance: ${distanceKm(drawPoints).toFixed(2)} km`);
+    }
+
+    function clearDrawOnly() {
+      if (drawLine) map.removeLayer(drawLine);
+      drawDots.forEach(d => map.removeLayer(d));
+      drawLine = null;
+      drawDots = [];
+    }
+
+    function clearDraw() {
+      drawMode = false;
+      drawPoints = [];
+      clearDrawOnly();
+      setResult("Draw route cleared.");
+    }
+
+    function addDrawPoint(lat, lon) {
+      let p = L.latLng(lat, lon);
+      drawPoints.push(p);
+
+      let dot = L.circleMarker(p, {
+        radius: 5,
+        color: selectedColor(),
+        fillColor: selectedColor(),
+        fillOpacity: 0.7
       }).addTo(map);
+
+      drawDots.push(dot);
+
+      if (drawLine) map.removeLayer(drawLine);
+
+      drawLine = L.polyline(drawPoints, {
+        color: selectedColor(),
+        weight: 7,
+        opacity: 0.45
+      }).addTo(map);
+
+      setResult(`Drawing route...<br>Distance: ${distanceKm(drawPoints).toFixed(2)} km`);
     }
 
-    function getSelectedRouteColor() {
-      return document.getElementById("routeColor").value;
+    function startRecording() {
+      if (!navigator.geolocation) {
+        alert("GPS not supported.");
+        return;
+      }
+
+      recording = true;
+      paused = false;
+      recPoints = [];
+
+      if (recLine) map.removeLayer(recLine);
+
+      watchId = navigator.geolocation.watchPosition(
+        pos => {
+          if (!recording || paused) return;
+
+          let p = L.latLng(pos.coords.latitude, pos.coords.longitude);
+          recPoints.push(p);
+
+          if (recLine) map.removeLayer(recLine);
+
+          recLine = L.polyline(recPoints, {
+            color: selectedColor(),
+            weight: 8,
+            opacity: 0.55
+          }).addTo(map);
+
+          map.setView(p, 18);
+
+          setResult(
+            `Recording...<br>
+             Distance: ${distanceKm(recPoints).toFixed(2)} km<br>
+             GPS accuracy: ±${Math.round(pos.coords.accuracy)} m`
+          );
+        },
+        () => alert("Allow location permission."),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000
+        }
+      );
+
+      setResult("Recording started.");
     }
 
-    function startRoute() {
-      drawingRoute = true;
-      routePoints = [];
-      clearRouteOnly();
-
-      document.getElementById("result").innerHTML =
-        "Route mode ON. Tap points on map.";
+    function pauseRecording() {
+      if (!recording) return;
+      paused = true;
+      setResult("Recording paused.");
     }
 
-    function finishRoute() {
-      drawingRoute = false;
-      let distance = getRouteDistance();
-
-      document.getElementById("result").innerHTML =
-        `Route finished<br>Distance: ${distance.toFixed(2)} km`;
+    function resumeRecording() {
+      if (!recording) return;
+      paused = false;
+      setResult("Recording resumed.");
     }
 
-    function clearRouteOnly() {
-      if (routeLine) map.removeLayer(routeLine);
-      routeMarkers.forEach(m => map.removeLayer(m));
-      routeLine = null;
-      routeMarkers = [];
+    function stopRecording() {
+      recording = false;
+      paused = false;
+
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+
+      setResult(
+        `Recording stopped.<br>
+         Distance: ${distanceKm(recPoints).toFixed(2)} km<br>
+         Press Save.`
+      );
     }
 
-    function clearRoute() {
-      drawingRoute = false;
-      routePoints = [];
-      clearRouteOnly();
+    function saveRecording() {
+      if (recPoints.length < 2) {
+        alert("Not enough points to save.");
+        return;
+      }
 
-      document.getElementById("result").innerHTML =
-        "Route cleared. Tap street to find block.";
+      let name = prompt("Route name:");
+      if (!name) return;
+
+      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+
+      routes.push({
+        name: name,
+        date: new Date().toLocaleString(),
+        color: selectedColor(),
+        points: recPoints.map(p => [p.lat, p.lng])
+      });
+
+      localStorage.setItem("routes", JSON.stringify(routes));
+      refreshRoutes();
+      setResult(`Saved: ${name}`);
     }
 
+    function refreshRoutes() {
+      let s = document.getElementById("savedRoutes");
+      s.innerHTML = '<option value="">Select old route</option>';
+
+      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+
+      routes.forEach((r, i) => {
+        let o = document.createElement("option");
+        o.value = i;
+        o.textContent = `${r.name} - ${r.date}`;
+        s.appendChild(o);
+      });
+    }
+
+    function loadRoute() {
+      let i = document.getElementById("savedRoutes").value;
+      if (i === "") return;
+
+      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+      let r = routes[i];
+
+      if (!r) return;
+
+      if (oldRouteLine) map.removeLayer(oldRouteLine);
+
+      let pts = r.points.map(p => L.latLng(p[0], p[1]));
+
+      oldRouteLine = L.polyline(pts, {
+        color: r.color || "#4da6ff",
+        weight: 9,
+        opacity: 0.35,
+        dashArray: "8,8"
+      }).addTo(map);
+
+      map.fitBounds(oldRouteLine.getBounds());
+
+      setResult(`Old route loaded: ${r.name}<br>You can record a new route while old one is showing.`);
+    }
+
+    function deleteRoute() {
+      let i = document.getElementById("savedRoutes").value;
+      if (i === "") {
+        alert("Select route first.");
+        return;
+      }
+
+      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+      routes.splice(i, 1);
+
+      localStorage.setItem("routes", JSON.stringify(routes));
+
+      if (oldRouteLine) map.removeLayer(oldRouteLine);
+      oldRouteLine = null;
+
+      refreshRoutes();
+      setResult("Route deleted.");
+    }
+
+    async function searchPlace() {
+      let text = document.getElementById("searchBox").value.trim();
+
+      if (!text) {
+        alert("Type street or address first.");
+        return;
+      }
+
+      let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(text + ", Saskatoon, Canada")}&limit=1`;
+
+      let res = await fetch(url);
+      let data = await res.json();
+
+      if (!data.length) {
+        setResult("Place not found.");
+        return;
+      }
+
+      let lat = parseFloat(data[0].lat);
+      let lon = parseFloat(data[0].lon);
+
+      map.setView([lat, lon], 18);
+      checkBlock(lat, lon);
+    }
+
+    map.on("click", e => {
+      if (drawMode) {
+        addDrawPoint(e.latlng.lat, e.latlng.lng);
+      } else {
+        checkBlock(e.latlng.lat, e.latlng.lng);
+      }
+    });
+
+    refreshRoutes();
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
+  </script>
+</body>
+</html>
     function addRoutePoint(lat, lon) {
       let point = L.latLng(lat, lon);
       routePoints.push(point);
