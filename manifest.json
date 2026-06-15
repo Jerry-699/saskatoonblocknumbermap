@@ -1,8 +1,10 @@
 {
-  "name": "Street Block Finder",
+  "name": "Saskatoon Block Finder",
   "short_name": "Blocks",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#111111",
-  "theme_color": "#111111"
+  "theme_color": "#111111",
+  "orientation": "portrait",
+  "description": "Find Saskatoon street blocks, record routes, and load old routes."
 }
