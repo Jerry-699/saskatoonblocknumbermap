@@ -1,607 +1,2315 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Saskatoon Block Finder</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+>
 
-  <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-    }
+<title>Faran Saskatoon Map</title>
 
-    .panel {
-      padding: 10px;
-      background: white;
-    }
+<link
+  href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
+  rel="stylesheet"
+/>
 
-    button, input, select {
-      padding: 9px;
-      margin: 3px;
-      font-size: 14px;
-      border-radius: 8px;
-      border: 1px solid #aaa;
-    }
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
+}
 
-    input {
-      width: 250px;
-      max-width: 90%;
-    }
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 
-    #result {
-      margin-top: 8px;
-      padding: 10px;
-      background: #fff3c4;
-      font-weight: bold;
-      border-radius: 8px;
-    }
+#toolbar {
+  padding: 8px;
+  background: white;
+  z-index: 10;
+}
 
-    #map {
-      height: 72vh;
-      width: 100%;
-    }
+#toolbar h2 {
+  margin: 2px 0 7px;
+  font-size: 19px;
+}
 
-    body.dark {
-      background: #111;
-      color: white;
-    }
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 5px;
+}
 
-    body.dark .panel {
-      background: #1d1d1d;
-    }
+button,
+select,
+input {
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+  background: white;
+}
 
-    body.dark #result {
-      background: #2b2b2b;
-      color: white;
-    }
+button {
+  cursor: pointer;
+}
 
-    body.dark button,
-    body.dark input,
-    body.dark select {
-      background: #333;
-      color: white;
-      border: 1px solid #666;
-    }
+button.active {
+  background: #1769aa;
+  color: white;
+}
 
-    body.dark #map .leaflet-tile {
-      filter: brightness(0.65) invert(1) contrast(2) hue-rotate(180deg) saturate(0.6);
-    }
+input {
+  flex: 1;
+  min-width: 170px;
+}
 
-    .labelBox {
-      background: rgba(255,255,255,0.96);
-      color: black;
-      border: 2px solid black;
-      border-radius: 8px;
-      padding: 6px;
-      font-size: 14px;
-      font-weight: bold;
-      text-align: center;
-      box-shadow: 0 2px 6px black;
-      cursor: pointer;
-    }
+#status {
+  background: #fff3c4;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+}
 
-    .compass {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
-      background: white;
-      color: black;
-      border: 2px solid #111;
-      border-radius: 50%;
-      width: 58px;
-      height: 58px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      font-weight: bold;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      cursor: pointer;
-    }
+#mapWrap {
+  position: relative;
+  flex: 1;
+  min-height: 350px;
+}
 
-    body.dark .compass {
-      background: #222;
-      color: white;
-      border: 2px solid white;
-    }
-  </style>
+#map {
+  position: absolute;
+  inset: 0;
+}
+
+body.dark {
+  background: #111;
+  color: white;
+}
+
+body.dark #toolbar {
+  background: #1d1d1d;
+}
+
+body.dark #status {
+  background: #292929;
+  color: white;
+}
+
+body.dark button,
+body.dark select,
+body.dark input {
+  background: #333;
+  color: white;
+  border-color: #666;
+}
+
+body.dark .maplibregl-canvas {
+  filter: brightness(.72) contrast(1.15);
+}
+
+/* Driving arrow */
+.drive-arrow {
+  width: 34px;
+  height: 34px;
+  transform-origin: center;
+}
+
+.drive-arrow-inner {
+  width: 0;
+  height: 0;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-bottom: 32px solid #1976d2;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.55));
+}
+
+/* clicked address bubble */
+.address-marker {
+  background: rgba(255,255,255,.96);
+  color: #111;
+  border: 2px solid #111;
+  border-radius: 9px;
+  padding: 6px 8px;
+  min-width: 115px;
+  max-width: 190px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 2px 7px rgba(0,0,0,.35);
+  cursor: pointer;
+}
+
+.hydrant-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e53935;
+  color: white;
+  border: 2px solid white;
+  box-shadow: 0 1px 5px rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#driveInfo {
+  position: absolute;
+  bottom: 35px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  background: rgba(20,20,20,.88);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 13px;
+  display: none;
+  white-space: nowrap;
+}
+
+#credit {
+  position: absolute;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  background: rgba(255,255,255,.9);
+  color: #222;
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+body.dark #credit {
+  background: rgba(20,20,20,.9);
+  color: white;
+}
+
+.maplibregl-ctrl-top-right {
+  margin-top: 4px;
+}
+</style>
 </head>
 
 <body>
-  <div class="panel">
+<div id="app">
+
+  <div id="toolbar">
+
     <h2>Saskatoon Block Finder</h2>
 
-    <button onclick="useMyLocation()">📍 Accurate GPS</button>
-    <button onclick="toggleDark()">🌙 Night Mode</button>
+    <div class="controls">
+      <button id="followBtn">🚗 Start Drive</button>
+      <button id="gpsBtn">📍 GPS</button>
+      <button id="darkBtn">🌙 Night</button>
+      <button id="northBtn">🧭 North</button>
+      <button id="hydrantBtn">🔥 Hydrants</button>
+    </div>
 
-    <br>
+    <div class="controls">
+      <button id="drawBtn">✏️ Draw</button>
+      <button id="finishDrawBtn">✅ Finish + Save</button>
+      <button id="clearDrawBtn">🗑 Clear</button>
 
-    <button onclick="startDraw()">✏️ Draw Route</button>
-    <button onclick="finishDraw()">✅ Finish Draw + Save</button>
-    <button onclick="clearDraw()">🗑 Clear Draw</button>
+      <select id="routeColor">
+        <option value="#2196f3">Blue</option>
+        <option value="#f44336">Red</option>
+        <option value="#4caf50">Green</option>
+        <option value="#ff9800">Orange</option>
+        <option value="#9c27b0">Purple</option>
+        <option value="#00bcd4">Cyan</option>
+      </select>
+    </div>
 
-    <br>
+    <div class="controls">
+      <button id="recordBtn">🔴 Record</button>
+      <button id="pauseBtn">⏸ Pause</button>
+      <button id="resumeBtn">▶ Resume</button>
+      <button id="stopBtn">⏹ Stop</button>
+      <button id="saveBtn">💾 Save</button>
+    </div>
 
-    <button onclick="startRecording()">🔴 Record</button>
-    <button onclick="pauseRecording()">⏸ Pause</button>
-    <button onclick="resumeRecording()">▶️ Resume</button>
-    <button onclick="stopRecording()">⏹ Stop</button>
-    <button onclick="saveRecording()">💾 Save</button>
+    <div class="controls">
+      <select id="savedRoutes">
+        <option value="">Select old route</option>
+      </select>
 
-    <br>
+      <button id="loadRouteBtn">Show Route</button>
+      <button id="hideRouteBtn">Hide</button>
+      <button id="deleteRouteBtn">Delete</button>
+    </div>
 
-    <select id="color">
-      <option value="#4da6ff">Blue</option>
-      <option value="#ff4d4d">Red</option>
-      <option value="#66ff99">Green</option>
-      <option value="#ffff66">Yellow</option>
-      <option value="#ff99ff">Pink</option>
-      <option value="#ffb84d">Orange</option>
-    </select>
+    <div class="controls">
+      <input
+        id="searchBox"
+        placeholder="Search Saskatoon street or address"
+      >
+      <button id="searchBtn">Search</button>
+    </div>
 
-    <select id="savedRoutes" onchange="loadRoute()">
-      <option value="">Select old route</option>
-    </select>
+    <div id="status">
+      Tap a street to see its street name and block.
+    </div>
 
-    <button onclick="deleteRoute()">Delete Route</button>
-
-    <br>
-
-    <input id="searchBox" placeholder="Search street/address in Saskatoon">
-    <button onclick="searchPlace()">Search</button>
-
-    <div id="result">Tap a street to see block number.</div>
   </div>
 
-  <div id="map"></div>
-  <div class="compass" id="compass" onclick="resetNorth()">N</div>
+  <div id="mapWrap">
+    <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+    <div id="driveInfo"></div>
 
-  <script>
-    let map = L.map("map", {
-      rotate: true,
-      touchRotate: true,
-      bearing: 0
-    }).setView([52.1332, -106.6700], 12);
+    <div id="credit">
+      Saskatoon Block Finder • Made by Faran
+    </div>
+  </div>
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-      maxZoom: 19
-    }).addTo(map);
+</div>
 
-    let dark = false;
-    let marker = null;
-    let accuracyCircle = null;
 
-    let drawMode = false;
-    let drawPoints = [];
-    let drawLine = null;
-    let drawDots = [];
+<script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
 
-    let recording = false;
-    let paused = false;
-    let watchId = null;
-    let recPoints = [];
-    let recLine = null;
+<script>
+/* =========================================================
+   BASIC MAP
+========================================================= */
 
-    let oldRouteLine = null;
+const SASKATOON = [-106.6700, 52.1332];
 
-    function setResult(text) {
-      document.getElementById("result").innerHTML = text;
-    }
+const map = new maplibregl.Map({
+  container: "map",
 
-    function selectedColor() {
-      return document.getElementById("color").value;
-    }
+  style: {
+    version: 8,
 
-    function toggleDark() {
-      dark = !dark;
-      document.body.classList.toggle("dark", dark);
-      setResult(dark ? "Night mode ON." : "Night mode OFF.");
-    }
-
-    function resetNorth() {
-      if (map.setBearing) {
-        map.setBearing(0);
-        updateCompass();
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: [
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        ],
+        tileSize: 256,
+        attribution: "© OpenStreetMap contributors"
       }
-    }
+    },
 
-    function updateCompass() {
-      let bearing = map.getBearing ? map.getBearing() : 0;
-      document.getElementById("compass").style.transform =
-        `rotate(${-bearing}deg)`;
-    }
-
-    map.on("rotate", updateCompass);
-    map.on("move", updateCompass);
-
-    function blockRange(num) {
-      num = parseInt(num);
-      if (isNaN(num)) return "Block unknown";
-      let start = Math.floor(num / 100) * 100;
-      return `${start}-${start + 99}`;
-    }
-
-    function distanceKm(points) {
-      let total = 0;
-      for (let i = 0; i < points.length - 1; i++) {
-        total += points[i].distanceTo(points[i + 1]);
+    layers: [
+      {
+        id: "osm",
+        type: "raster",
+        source: "osm"
       }
-      return total / 1000;
-    }
+    ]
+  },
 
-    async function reverseGeocode(lat, lon) {
-      let url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`;
-      let res = await fetch(url);
-      let data = await res.json();
-      let a = data.address || {};
+  center: SASKATOON,
+  zoom: 12,
 
-      return {
-        road: a.road || a.street || a.residential || a.pedestrian || "Street unknown",
-        house: a.house_number || null
-      };
-    }
+  /* 360 rotation */
+  bearing: 0,
+  pitch: 0,
 
-    async function checkBlock(lat, lon) {
-      setResult("Checking block...");
+  dragRotate: true,
+  touchPitch: false
+});
 
-      try {
-        let info = await reverseGeocode(lat, lon);
-        let block = info.house ? blockRange(info.house) : "Block unknown";
 
-        setResult(
-          `Street: ${info.road}<br>
-           Block: ${block} ${info.road}<br>
-           Address used: ${info.house || "Not found"}`
+/* Built-in working compass */
+map.addControl(
+  new maplibregl.NavigationControl({
+    showCompass: true,
+    showZoom: true,
+    visualizePitch: true
+  }),
+  "top-right"
+);
+
+
+/* =========================================================
+   GLOBAL STATE
+========================================================= */
+
+let darkMode = false;
+
+let addressMarker = null;
+
+let gpsMarker = null;
+
+let gpsAccuracySourceAdded = false;
+
+let followMode = false;
+
+let followWatchId = null;
+
+let lastGps = null;
+
+let lastHeading = 0;
+
+let drawing = false;
+
+let drawPoints = [];
+
+let recording = false;
+
+let recordingPaused = false;
+
+let recordingWatchId = null;
+
+let recordedPoints = [];
+
+let loadedOldRoute = null;
+
+let hydrantsOn = false;
+
+let hydrantMarkers = [];
+
+let blockCache = new Map();
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function status(html) {
+  document.getElementById("status").innerHTML = html;
+}
+
+function selectedColor() {
+  return document.getElementById("routeColor").value;
+}
+
+function blockRange(number) {
+
+  const n = parseInt(number);
+
+  if (isNaN(n)) {
+    return null;
+  }
+
+  const start = Math.floor(n / 100) * 100;
+
+  return {
+    start: start,
+    end: start + 99,
+    text: `${start}-${start + 99}`
+  };
+}
+
+
+function distanceMetres(a, b) {
+
+  const R = 6371000;
+
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+
+  const dLat =
+    (b.lat - a.lat) * Math.PI / 180;
+
+  const dLon =
+    (b.lng - a.lng) * Math.PI / 180;
+
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) *
+    Math.cos(lat2) *
+    Math.sin(dLon / 2) ** 2;
+
+  return R * 2 *
+    Math.atan2(
+      Math.sqrt(x),
+      Math.sqrt(1 - x)
+    );
+}
+
+
+function routeDistance(points) {
+
+  let total = 0;
+
+  for (let i = 1; i < points.length; i++) {
+    total += distanceMetres(
+      points[i - 1],
+      points[i]
+    );
+  }
+
+  return total;
+}
+
+
+/* Calculate direction between GPS positions */
+
+function calculateBearing(a, b) {
+
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+
+  const dLon =
+    (b.lng - a.lng) * Math.PI / 180;
+
+  const y =
+    Math.sin(dLon) *
+    Math.cos(lat2);
+
+  const x =
+    Math.cos(lat1) *
+    Math.sin(lat2) -
+    Math.sin(lat1) *
+    Math.cos(lat2) *
+    Math.cos(dLon);
+
+  let bearing =
+    Math.atan2(y, x) * 180 / Math.PI;
+
+  return (bearing + 360) % 360;
+}
+
+
+/* =========================================================
+   DARK MODE
+========================================================= */
+
+document
+  .getElementById("darkBtn")
+  .addEventListener("click", () => {
+
+    darkMode = !darkMode;
+
+    document.body.classList.toggle(
+      "dark",
+      darkMode
+    );
+
+    status(
+      darkMode
+        ? "Night mode ON."
+        : "Night mode OFF."
+    );
+  });
+
+
+/* =========================================================
+   NORTH
+========================================================= */
+
+document
+  .getElementById("northBtn")
+  .addEventListener("click", () => {
+
+    map.easeTo({
+      bearing: 0,
+      duration: 500
+    });
+  });
+
+
+/* =========================================================
+   ADDRESS / BLOCK LOOKUP
+========================================================= */
+
+async function reverseGeocode(lat, lng) {
+
+  const key =
+    lat.toFixed(5) + "," +
+    lng.toFixed(5);
+
+  if (blockCache.has(key)) {
+    return blockCache.get(key);
+  }
+
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () => controller.abort(),
+      4500
+    );
+
+  try {
+
+    const url =
+      "https://nominatim.openstreetmap.org/reverse" +
+      "?format=jsonv2" +
+      "&addressdetails=1" +
+      "&zoom=18" +
+      "&lat=" + lat +
+      "&lon=" + lng;
+
+    const response =
+      await fetch(url, {
+        signal: controller.signal
+      });
+
+    const data =
+      await response.json();
+
+    clearTimeout(timer);
+
+    const a =
+      data.address || {};
+
+    const result = {
+
+      road:
+        a.road ||
+        a.street ||
+        a.residential ||
+        a.pedestrian ||
+        a.service ||
+        "Street unknown",
+
+      house:
+        a.house_number ||
+        null
+    };
+
+    blockCache.set(
+      key,
+      result
+    );
+
+    return result;
+
+  } catch (error) {
+
+    clearTimeout(timer);
+
+    return {
+      road: "Street unknown",
+      house: null
+    };
+  }
+}
+
+
+/* fallback for empty streets */
+
+async function findNearbyBlock(
+  lat,
+  lng,
+  road
+) {
+
+  if (!road ||
+      road === "Street unknown") {
+
+    return null;
+  }
+
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () => controller.abort(),
+      3500
+    );
+
+  try {
+
+    const safeRoad =
+      road.replace(/"/g, '\\"');
+
+    const query = `
+[out:json][timeout:3];
+(
+ node["addr:housenumber"]["addr:street"="${safeRoad}"](around:220,${lat},${lng});
+ way["addr:housenumber"]["addr:street"="${safeRoad}"](around:220,${lat},${lng});
+);
+out center tags 30;
+`;
+
+    const url =
+      "https://overpass-api.de/api/interpreter?data=" +
+      encodeURIComponent(query);
+
+    const response =
+      await fetch(url, {
+        signal: controller.signal
+      });
+
+    const data =
+      await response.json();
+
+    clearTimeout(timer);
+
+    let numbers = [];
+
+    for (const item of data.elements) {
+
+      const n =
+        parseInt(
+          item.tags?.["addr:housenumber"]
         );
 
-        if (marker) map.removeLayer(marker);
+      if (!isNaN(n)) {
+        numbers.push(n);
+      }
+    }
 
-        marker = L.marker([lat, lon], {
-          icon: L.divIcon({
-            className: "labelBox",
-            html: `${info.house || ""}<br>${block}<br>${info.road}<br><small>Tap to close</small>`,
-            iconSize: [170, 85],
-            iconAnchor: [85, 42]
-          })
-        }).addTo(map);
+    if (!numbers.length) {
+      return null;
+    }
 
-        marker.on("click", function () {
-          map.removeLayer(marker);
-          marker = null;
+    numbers.sort(
+      (a, b) => a - b
+    );
+
+    const middle =
+      numbers[
+        Math.floor(numbers.length / 2)
+      ];
+
+    return blockRange(middle);
+
+  } catch {
+
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+
+async function showBlock(
+  lat,
+  lng
+) {
+
+  status(
+    "Finding street and block..."
+  );
+
+  const info =
+    await reverseGeocode(
+      lat,
+      lng
+    );
+
+  let block =
+    info.house
+      ? blockRange(info.house)
+      : null;
+
+  /* show road immediately */
+
+  status(
+    `Street: ${info.road}<br>` +
+    `Block: ${
+      block
+        ? block.text
+        : "Estimating..."
+    }`
+  );
+
+  if (!block) {
+
+    block =
+      await findNearbyBlock(
+        lat,
+        lng,
+        info.road
+      );
+  }
+
+  const blockText =
+    block
+      ? `${block.text} ${info.road}`
+      : `Block unknown • ${info.road}`;
+
+  status(
+    `Street: ${info.road}<br>` +
+    `Block: ${blockText}` +
+    (
+      info.house
+        ? `<br>Nearest address: ${info.house}`
+        : ""
+    )
+  );
+
+
+  /* remove previous */
+  if (addressMarker) {
+    addressMarker.remove();
+  }
+
+
+  const box =
+    document.createElement("div");
+
+  box.className =
+    "address-marker";
+
+  box.innerHTML =
+    (
+      info.house
+        ? `${info.house}<br>`
+        : ""
+    ) +
+    blockText +
+    "<br><small>Tap to close</small>";
+
+
+  addressMarker =
+    new maplibregl.Marker({
+      element: box,
+      anchor: "bottom"
+    })
+    .setLngLat([lng, lat])
+    .addTo(map);
+
+
+  /* Tap it again = disappear */
+
+  box.addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      if (addressMarker) {
+        addressMarker.remove();
+        addressMarker = null;
+      }
+    }
+  );
+}
+
+
+/* Map click */
+
+map.on(
+  "click",
+  event => {
+
+    if (drawing) {
+
+      addDrawPoint(
+        event.lngLat.lat,
+        event.lngLat.lng
+      );
+
+      return;
+    }
+
+    showBlock(
+      event.lngLat.lat,
+      event.lngLat.lng
+    );
+  }
+);
+
+
+/* =========================================================
+   SEARCH
+========================================================= */
+
+document
+  .getElementById("searchBtn")
+  .addEventListener(
+    "click",
+    searchPlace
+  );
+
+document
+  .getElementById("searchBox")
+  .addEventListener(
+    "keydown",
+    e => {
+
+      if (e.key === "Enter") {
+        searchPlace();
+      }
+    }
+  );
+
+
+async function searchPlace() {
+
+  const text =
+    document
+      .getElementById("searchBox")
+      .value
+      .trim();
+
+  if (!text) {
+    return;
+  }
+
+  status("Searching...");
+
+  try {
+
+    const url =
+      "https://nominatim.openstreetmap.org/search" +
+      "?format=jsonv2" +
+      "&limit=1" +
+      "&q=" +
+      encodeURIComponent(
+        text +
+        ", Saskatoon, Saskatchewan, Canada"
+      );
+
+    const response =
+      await fetch(url);
+
+    const data =
+      await response.json();
+
+    if (!data.length) {
+
+      status(
+        "Address not found."
+      );
+
+      return;
+    }
+
+    const lat =
+      parseFloat(data[0].lat);
+
+    const lng =
+      parseFloat(data[0].lon);
+
+    map.flyTo({
+      center: [lng, lat],
+      zoom: 18,
+      duration: 700
+    });
+
+    showBlock(lat, lng);
+
+  } catch {
+
+    status(
+      "Search error."
+    );
+  }
+}
+
+
+/* =========================================================
+   GPS ARROW
+========================================================= */
+
+function createGpsArrow() {
+
+  const wrapper =
+    document.createElement("div");
+
+  wrapper.className =
+    "drive-arrow";
+
+  const arrow =
+    document.createElement("div");
+
+  arrow.className =
+    "drive-arrow-inner";
+
+  wrapper.appendChild(arrow);
+
+  return wrapper;
+}
+
+
+function updateGpsMarker(
+  lng,
+  lat,
+  heading
+) {
+
+  if (!gpsMarker) {
+
+    gpsMarker =
+      new maplibregl.Marker({
+        element:
+          createGpsArrow(),
+
+        rotationAlignment:
+          "map",
+
+        pitchAlignment:
+          "map"
+      })
+      .setLngLat([lng, lat])
+      .addTo(map);
+  }
+
+  gpsMarker
+    .setLngLat([lng, lat])
+    .setRotation(heading);
+}
+
+
+/* =========================================================
+   SINGLE GPS LOCATION
+========================================================= */
+
+document
+  .getElementById("gpsBtn")
+  .addEventListener(
+    "click",
+    getAccurateLocation
+  );
+
+
+function getAccurateLocation() {
+
+  if (!navigator.geolocation) {
+
+    status(
+      "GPS not supported."
+    );
+
+    return;
+  }
+
+  status(
+    "Getting accurate GPS..."
+  );
+
+  let best = null;
+
+  let readings = 0;
+
+  const watcher =
+    navigator.geolocation.watchPosition(
+
+      position => {
+
+        readings++;
+
+        if (
+          !best ||
+          position.coords.accuracy <
+          best.coords.accuracy
+        ) {
+
+          best = position;
+        }
+
+        status(
+          `GPS accuracy: ±${
+            Math.round(
+              position.coords.accuracy
+            )
+          } m`
+        );
+
+
+        if (
+          position.coords.accuracy <= 8 ||
+          readings >= 7
+        ) {
+
+          navigator.geolocation
+            .clearWatch(watcher);
+
+          const lat =
+            best.coords.latitude;
+
+          const lng =
+            best.coords.longitude;
+
+          updateGpsMarker(
+            lng,
+            lat,
+            0
+          );
+
+          map.flyTo({
+            center: [lng, lat],
+            zoom: 18,
+            duration: 500
+          });
+
+          showBlock(lat, lng);
+        }
+      },
+
+      error => {
+
+        status(
+          "Location permission is required."
+        );
+      },
+
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000
+      }
+    );
+}
+
+
+/* =========================================================
+   GOOGLE-MAPS STYLE DRIVE FOLLOW
+========================================================= */
+
+document
+  .getElementById("followBtn")
+  .addEventListener(
+    "click",
+    toggleFollowMode
+  );
+
+
+function toggleFollowMode() {
+
+  if (followMode) {
+    stopFollowMode();
+  } else {
+    startFollowMode();
+  }
+}
+
+
+function startFollowMode() {
+
+  if (!navigator.geolocation) {
+
+    status(
+      "GPS not supported."
+    );
+
+    return;
+  }
+
+  followMode = true;
+
+  document
+    .getElementById("followBtn")
+    .classList.add("active");
+
+  document
+    .getElementById("followBtn")
+    .textContent =
+      "🚗 Stop Drive";
+
+  document
+    .getElementById("driveInfo")
+    .style.display =
+      "block";
+
+  status(
+    "Drive mode starting..."
+  );
+
+
+  followWatchId =
+    navigator.geolocation.watchPosition(
+
+      position => {
+
+        const lat =
+          position.coords.latitude;
+
+        const lng =
+          position.coords.longitude;
+
+        const accuracy =
+          position.coords.accuracy;
+
+
+        let heading =
+          position.coords.heading;
+
+
+        /*
+          Many phones return null heading
+          while standing still.
+          When moving, calculate it from
+          previous GPS positions.
+        */
+
+        if (
+          heading == null ||
+          isNaN(heading)
+        ) {
+
+          if (lastGps) {
+
+            const moved =
+              distanceMetres(
+                lastGps,
+                { lat, lng }
+              );
+
+            if (moved >= 2) {
+
+              heading =
+                calculateBearing(
+                  lastGps,
+                  { lat, lng }
+                );
+            }
+          }
+        }
+
+
+        if (
+          heading != null &&
+          !isNaN(heading)
+        ) {
+
+          lastHeading =
+            heading;
+        }
+
+
+        updateGpsMarker(
+          lng,
+          lat,
+          lastHeading
+        );
+
+
+        /*
+          Keep user lower on screen,
+          similar to navigation apps.
+        */
+
+        map.easeTo({
+
+          center:
+            [lng, lat],
+
+          zoom:
+            Math.max(
+              map.getZoom(),
+              17
+            ),
+
+          bearing:
+            lastHeading,
+
+          pitch:
+            0,
+
+          duration:
+            500,
+
+          padding: {
+            top: 100,
+            bottom: 180,
+            left: 20,
+            right: 20
+          }
         });
 
-        map.setView([lat, lon], 18);
-      } catch {
-        setResult("Address not found. Try closer to the street.");
+
+        const speed =
+          position.coords.speed;
+
+
+        const speedKmh =
+          speed != null
+            ? Math.max(0, speed * 3.6)
+            : null;
+
+
+        document
+          .getElementById("driveInfo")
+          .innerHTML =
+
+          (
+            speedKmh != null
+              ? `${speedKmh.toFixed(0)} km/h • `
+              : ""
+          ) +
+
+          `GPS ±${Math.round(accuracy)} m`;
+
+
+        lastGps =
+          { lat, lng };
+      },
+
+      error => {
+
+        status(
+          "Please allow precise location."
+        );
+
+        stopFollowMode();
+      },
+
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000
       }
+    );
+}
+
+
+function stopFollowMode() {
+
+  followMode = false;
+
+  if (followWatchId != null) {
+
+    navigator.geolocation
+      .clearWatch(followWatchId);
+
+    followWatchId = null;
+  }
+
+  document
+    .getElementById("followBtn")
+    .classList.remove("active");
+
+  document
+    .getElementById("followBtn")
+    .textContent =
+      "🚗 Start Drive";
+
+  document
+    .getElementById("driveInfo")
+    .style.display =
+      "none";
+
+  status(
+    "Drive mode stopped."
+  );
+}
+
+
+/* =========================================================
+   MANUAL DRAW ROUTE
+========================================================= */
+
+function ensureLineSource(
+  id,
+  points,
+  color,
+  opacity = .55,
+  width = 6,
+  dash = null
+) {
+
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates:
+        points.map(
+          p => [p.lng, p.lat]
+        )
     }
+  };
 
-    function useMyLocation() {
-      if (!navigator.geolocation) {
-        alert("GPS not supported.");
-        return;
-      }
 
-      setResult("Getting best GPS accuracy... wait 5–10 seconds.");
+  if (map.getSource(id)) {
 
-      let best = null;
-      let tries = 0;
+    map
+      .getSource(id)
+      .setData(geojson);
 
-      let tempWatch = navigator.geolocation.watchPosition(
-        pos => {
-          tries++;
+    return;
+  }
 
-          if (!best || pos.coords.accuracy < best.coords.accuracy) {
-            best = pos;
-          }
 
-          setResult(`Improving GPS...<br>Accuracy now: ±${Math.round(pos.coords.accuracy)} m`);
+  map.addSource(id, {
+    type: "geojson",
+    data: geojson
+  });
 
-          if (pos.coords.accuracy <= 8 || tries >= 8) {
-            navigator.geolocation.clearWatch(tempWatch);
 
-            let lat = best.coords.latitude;
-            let lon = best.coords.longitude;
-            let acc = Math.round(best.coords.accuracy);
+  const paint = {
+    "line-color": color,
+    "line-width": width,
+    "line-opacity": opacity
+  };
 
-            if (accuracyCircle) map.removeLayer(accuracyCircle);
 
-            accuracyCircle = L.circle([lat, lon], {
-              radius: acc,
-              weight: 1,
-              fillOpacity: 0.12
-            }).addTo(map);
+  if (dash) {
+    paint["line-dasharray"] = dash;
+  }
 
-            map.setView([lat, lon], 18);
-            checkBlock(lat, lon);
-          }
-        },
-        () => alert("Allow location permission."),
-        {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 15000
-        }
+
+  map.addLayer({
+    id: id,
+    type: "line",
+    source: id,
+    layout: {
+      "line-join": "round",
+      "line-cap": "round"
+    },
+    paint
+  });
+}
+
+
+function removeLine(id) {
+
+  if (map.getLayer(id)) {
+    map.removeLayer(id);
+  }
+
+  if (map.getSource(id)) {
+    map.removeSource(id);
+  }
+}
+
+
+document
+  .getElementById("drawBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      drawing = true;
+
+      drawPoints = [];
+
+      removeLine("drawRoute");
+
+      status(
+        "Draw mode ON. Tap points on the map."
       );
     }
+  );
 
-    function startDraw() {
-      drawMode = true;
-      drawPoints = [];
-      clearDrawOnly();
-      setResult("Draw mode ON. Tap points on map.");
-    }
 
-    function finishDraw() {
-      drawMode = false;
+function addDrawPoint(lat, lng) {
+
+  drawPoints.push({
+    lat,
+    lng
+  });
+
+  ensureLineSource(
+    "drawRoute",
+    drawPoints,
+    selectedColor(),
+    .5,
+    7
+  );
+
+  status(
+    `Drawing... ${
+      (
+        routeDistance(drawPoints) /
+        1000
+      ).toFixed(2)
+    } km`
+  );
+}
+
+
+document
+  .getElementById("finishDrawBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      drawing = false;
 
       if (drawPoints.length < 2) {
-        alert("Draw at least 2 points first.");
+
+        alert(
+          "Draw at least two points."
+        );
+
         return;
       }
 
-      let name = prompt("Name this drawn route:");
-      if (!name) name = "Drawn Route";
+      let name =
+        prompt(
+          "Name this route:"
+        );
 
-      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+      if (!name) {
 
-      routes.push({
-        name: name,
-        date: new Date().toLocaleString(),
-        color: selectedColor(),
-        points: drawPoints.map(p => [p.lat, p.lng])
-      });
+        name =
+          "Drawn Route";
+      }
 
-      localStorage.setItem("routes", JSON.stringify(routes));
-      refreshRoutes();
+      saveRoute(
+        name,
+        drawPoints,
+        selectedColor()
+      );
 
-      setResult(
-        `Draw route saved: ${name}<br>
-         Distance: ${distanceKm(drawPoints).toFixed(2)} km`
+      status(
+        `${name} saved to old routes.`
       );
     }
+  );
 
-    function clearDrawOnly() {
-      if (drawLine) map.removeLayer(drawLine);
-      drawDots.forEach(d => map.removeLayer(d));
-      drawLine = null;
-      drawDots = [];
-    }
 
-    function clearDraw() {
-      drawMode = false;
+document
+  .getElementById("clearDrawBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      drawing = false;
+
       drawPoints = [];
-      clearDrawOnly();
-      setResult("Draw route cleared.");
+
+      removeLine(
+        "drawRoute"
+      );
+
+      status(
+        "Draw route cleared."
+      );
     }
+  );
 
-    function addDrawPoint(lat, lon) {
-      let p = L.latLng(lat, lon);
-      drawPoints.push(p);
 
-      let dot = L.circleMarker(p, {
-        radius: 5,
-        color: selectedColor(),
-        fillColor: selectedColor(),
-        fillOpacity: 0.7
-      }).addTo(map);
+/* =========================================================
+   GPS RECORDING
+========================================================= */
 
-      drawDots.push(dot);
+document
+  .getElementById("recordBtn")
+  .addEventListener(
+    "click",
+    startRecording
+  );
 
-      if (drawLine) map.removeLayer(drawLine);
 
-      drawLine = L.polyline(drawPoints, {
-        color: selectedColor(),
-        weight: 7,
-        opacity: 0.45
-      }).addTo(map);
+function startRecording() {
 
-      setResult(`Drawing route...<br>Distance: ${distanceKm(drawPoints).toFixed(2)} km`);
-    }
+  if (!navigator.geolocation) {
+    return;
+  }
 
-    function startRecording() {
-      if (!navigator.geolocation) {
-        alert("GPS not supported.");
+  if (recordingWatchId != null) {
+
+    navigator.geolocation
+      .clearWatch(
+        recordingWatchId
+      );
+  }
+
+  recordedPoints = [];
+
+  recording = true;
+
+  recordingPaused = false;
+
+  removeLine(
+    "recordedRoute"
+  );
+
+
+  recordingWatchId =
+    navigator.geolocation.watchPosition(
+
+      position => {
+
+        if (
+          !recording ||
+          recordingPaused
+        ) {
+          return;
+        }
+
+        /*
+          Ignore very poor GPS
+          so random jumps don't ruin route
+        */
+
+        if (
+          position.coords.accuracy >
+          45
+        ) {
+          return;
+        }
+
+        const point = {
+
+          lat:
+            position.coords.latitude,
+
+          lng:
+            position.coords.longitude
+        };
+
+
+        /*
+          Ignore tiny GPS jitter
+        */
+
+        const previous =
+          recordedPoints[
+            recordedPoints.length - 1
+          ];
+
+        if (previous) {
+
+          const moved =
+            distanceMetres(
+              previous,
+              point
+            );
+
+          if (moved < 1.5) {
+            return;
+          }
+        }
+
+
+        recordedPoints.push(
+          point
+        );
+
+
+        ensureLineSource(
+          "recordedRoute",
+          recordedPoints,
+          selectedColor(),
+          .55,
+          7
+        );
+
+
+        status(
+          `Recording • ${
+            (
+              routeDistance(
+                recordedPoints
+              ) / 1000
+            ).toFixed(2)
+          } km • GPS ±${
+            Math.round(
+              position.coords.accuracy
+            )
+          } m`
+        );
+      },
+
+      () => {
+
+        status(
+          "GPS recording error."
+        );
+      },
+
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000
+      }
+    );
+
+
+  status(
+    "Recording started."
+  );
+}
+
+
+document
+  .getElementById("pauseBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (!recording) {
         return;
       }
 
-      recording = true;
-      paused = false;
-      recPoints = [];
+      recordingPaused = true;
 
-      if (recLine) map.removeLayer(recLine);
+      status(
+        "Recording paused."
+      );
+    }
+  );
 
-      watchId = navigator.geolocation.watchPosition(
-        pos => {
-          if (!recording || paused) return;
 
-          let p = L.latLng(pos.coords.latitude, pos.coords.longitude);
-          recPoints.push(p);
+document
+  .getElementById("resumeBtn")
+  .addEventListener(
+    "click",
+    () => {
 
-          if (recLine) map.removeLayer(recLine);
+      if (!recording) {
+        return;
+      }
 
-          recLine = L.polyline(recPoints, {
-            color: selectedColor(),
-            weight: 8,
-            opacity: 0.55
-          }).addTo(map);
+      recordingPaused = false;
 
-          map.setView(p, 18);
+      status(
+        "Recording resumed."
+      );
+    }
+  );
 
-          setResult(
-            `Recording...<br>
-             Distance: ${distanceKm(recPoints).toFixed(2)} km<br>
-             GPS accuracy: ±${Math.round(pos.coords.accuracy)} m`
+
+document
+  .getElementById("stopBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      recording = false;
+
+      recordingPaused = false;
+
+      if (
+        recordingWatchId != null
+      ) {
+
+        navigator.geolocation
+          .clearWatch(
+            recordingWatchId
           );
-        },
-        () => alert("Allow location permission."),
+
+        recordingWatchId = null;
+      }
+
+      status(
+        `Recording stopped • ${
+          (
+            routeDistance(
+              recordedPoints
+            ) / 1000
+          ).toFixed(2)
+        } km`
+      );
+    }
+  );
+
+
+document
+  .getElementById("saveBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (
+        recordedPoints.length < 2
+      ) {
+
+        alert(
+          "No route to save."
+        );
+
+        return;
+      }
+
+      const name =
+        prompt(
+          "Route name:"
+        );
+
+      if (!name) {
+        return;
+      }
+
+      saveRoute(
+        name,
+        recordedPoints,
+        selectedColor()
+      );
+
+      status(
+        `${name} saved.`
+      );
+    }
+  );
+
+
+/* =========================================================
+   SAVED ROUTES
+========================================================= */
+
+function getRoutes() {
+
+  try {
+
+    return JSON.parse(
+      localStorage.getItem(
+        "faranRoutes"
+      ) || "[]"
+    );
+
+  } catch {
+
+    return [];
+  }
+}
+
+
+function saveRoute(
+  name,
+  points,
+  color
+) {
+
+  const routes =
+    getRoutes();
+
+  routes.push({
+
+    id:
+      Date.now(),
+
+    name,
+
+    date:
+      new Date()
+        .toLocaleString(),
+
+    color,
+
+    points
+  });
+
+  localStorage.setItem(
+    "faranRoutes",
+    JSON.stringify(routes)
+  );
+
+  refreshRoutes();
+}
+
+
+function refreshRoutes() {
+
+  const selector =
+    document.getElementById(
+      "savedRoutes"
+    );
+
+  selector.innerHTML =
+    '<option value="">Select old route</option>';
+
+  getRoutes().forEach(
+    route => {
+
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        route.id;
+
+      option.textContent =
+        route.name +
+        " • " +
+        route.date;
+
+      selector.appendChild(
+        option
+      );
+    }
+  );
+}
+
+
+document
+  .getElementById("loadRouteBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const id =
+        Number(
+          document
+            .getElementById(
+              "savedRoutes"
+            )
+            .value
+        );
+
+      if (!id) {
+        return;
+      }
+
+      const route =
+        getRoutes()
+          .find(
+            r => r.id === id
+          );
+
+      if (!route) {
+        return;
+      }
+
+      removeLine(
+        "oldRoute"
+      );
+
+      loadedOldRoute =
+        route;
+
+      ensureLineSource(
+        "oldRoute",
+        route.points,
+        route.color,
+        .38,
+        9,
+        [2, 1.5]
+      );
+
+
+      const bounds =
+        new maplibregl
+          .LngLatBounds();
+
+      route.points
+        .forEach(
+          point =>
+            bounds.extend(
+              [
+                point.lng,
+                point.lat
+              ]
+            )
+        );
+
+      map.fitBounds(
+        bounds,
         {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 10000
+          padding: 60,
+          maxZoom: 17
         }
       );
 
-      setResult("Recording started.");
+      status(
+        `Old route "${route.name}" loaded. ` +
+        `You can record a new route while it stays visible.`
+      );
     }
+  );
 
-    function pauseRecording() {
-      if (!recording) return;
-      paused = true;
-      setResult("Recording paused.");
+
+document
+  .getElementById("hideRouteBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      removeLine(
+        "oldRoute"
+      );
+
+      loadedOldRoute =
+        null;
+
+      status(
+        "Old route hidden."
+      );
     }
+  );
 
-    function resumeRecording() {
-      if (!recording) return;
-      paused = false;
-      setResult("Recording resumed.");
-    }
 
-    function stopRecording() {
-      recording = false;
-      paused = false;
+document
+  .getElementById("deleteRouteBtn")
+  .addEventListener(
+    "click",
+    () => {
 
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
+      const id =
+        Number(
+          document
+            .getElementById(
+              "savedRoutes"
+            )
+            .value
+        );
+
+      if (!id) {
+
+        alert(
+          "Select a route."
+        );
+
+        return;
       }
 
-      setResult(
-        `Recording stopped.<br>
-         Distance: ${distanceKm(recPoints).toFixed(2)} km<br>
-         Press Save.`
+      let routes =
+        getRoutes();
+
+      routes =
+        routes.filter(
+          route =>
+            route.id !== id
+        );
+
+      localStorage.setItem(
+        "faranRoutes",
+        JSON.stringify(routes)
+      );
+
+      removeLine(
+        "oldRoute"
+      );
+
+      refreshRoutes();
+
+      status(
+        "Route deleted."
+      );
+    }
+  );
+
+
+/* =========================================================
+   FIRE HYDRANTS
+========================================================= */
+
+/*
+  ArcGIS point FeatureServer
+*/
+
+const HYDRANT_SERVICE =
+  "https://services5.arcgis.com/aqscDN0KMPbfyKhW/ArcGIS/rest/services/Fire_Hydrants/FeatureServer/1/query";
+
+
+const REPORT_HYDRANT_URL =
+  "https://service.saskatoon.ca/site/saskatoon/request/cos_report_firehydrantissue";
+
+
+document
+  .getElementById("hydrantBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      hydrantsOn =
+        !hydrantsOn;
+
+      const button =
+        document.getElementById(
+          "hydrantBtn"
+        );
+
+      button.classList.toggle(
+        "active",
+        hydrantsOn
+      );
+
+
+      if (!hydrantsOn) {
+
+        clearHydrants();
+
+        status(
+          "Hydrants hidden."
+        );
+
+        return;
+      }
+
+
+      button.textContent =
+        "🔥 Hydrants ON";
+
+      await loadHydrants();
+    }
+  );
+
+
+function clearHydrants() {
+
+  hydrantMarkers
+    .forEach(
+      marker =>
+        marker.remove()
+    );
+
+  hydrantMarkers = [];
+
+  document
+    .getElementById(
+      "hydrantBtn"
+    )
+    .textContent =
+      "🔥 Hydrants";
+}
+
+
+async function loadHydrants() {
+
+  if (!hydrantsOn) {
+    return;
+  }
+
+  status(
+    "Loading nearby hydrants..."
+  );
+
+
+  clearHydrants();
+
+  hydrantsOn = true;
+
+  document
+    .getElementById(
+      "hydrantBtn"
+    )
+    .classList.add(
+      "active"
+    );
+
+  document
+    .getElementById(
+      "hydrantBtn"
+    )
+    .textContent =
+      "🔥 Hydrants ON";
+
+
+  const bounds =
+    map.getBounds();
+
+
+  const bbox =
+    [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth()
+    ].join(",");
+
+
+  const params =
+    new URLSearchParams({
+
+      where:
+        "1=1",
+
+      geometry:
+        bbox,
+
+      geometryType:
+        "esriGeometryEnvelope",
+
+      inSR:
+        "4326",
+
+      spatialRel:
+        "esriSpatialRelIntersects",
+
+      outFields:
+        "HYDRANTID,FACILITYID,LOCDESC,OPERABLE,INSPECTDT",
+
+      returnGeometry:
+        "true",
+
+      outSR:
+        "4326",
+
+      f:
+        "geojson"
+    });
+
+
+  try {
+
+    const response =
+      await fetch(
+        HYDRANT_SERVICE +
+        "?" +
+        params.toString()
+      );
+
+
+    if (!response.ok) {
+      throw new Error(
+        "Hydrant service error"
       );
     }
 
-    function saveRecording() {
-      if (recPoints.length < 2) {
-        alert("Not enough points to save.");
-        return;
+
+    const data =
+      await response.json();
+
+
+    const features =
+      data.features || [];
+
+
+    for (
+      const feature
+      of features
+    ) {
+
+      if (
+        feature.geometry?.type
+        !== "Point"
+      ) {
+        continue;
       }
 
-      let name = prompt("Route name:");
-      if (!name) return;
 
-      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+      const [
+        lng,
+        lat
+      ] =
+        feature.geometry.coordinates;
 
-      routes.push({
-        name: name,
-        date: new Date().toLocaleString(),
-        color: selectedColor(),
-        points: recPoints.map(p => [p.lat, p.lng])
-      });
 
-      localStorage.setItem("routes", JSON.stringify(routes));
-      refreshRoutes();
-      setResult(`Saved: ${name}`);
+      const properties =
+        feature.properties || {};
+
+
+      const element =
+        document.createElement(
+          "div"
+        );
+
+      element.className =
+        "hydrant-marker";
+
+      element.textContent =
+        "H";
+
+
+      const popup =
+        new maplibregl.Popup({
+          offset: 18
+        })
+        .setHTML(
+          `<strong>🔥 Fire Hydrant</strong><br>` +
+
+          (
+            properties.HYDRANTID
+              ? `ID: ${properties.HYDRANTID}<br>`
+              : ""
+          ) +
+
+          (
+            properties.LOCDESC
+              ? `Location: ${properties.LOCDESC}<br>`
+              : ""
+          ) +
+
+          (
+            properties.OPERABLE
+              ? `Operable: ${properties.OPERABLE}<br>`
+              : ""
+          ) +
+
+          `<br>` +
+
+          `<a href="${REPORT_HYDRANT_URL}" target="_blank">Report hydrant issue</a>`
+        );
+
+
+      const hydrantMarker =
+        new maplibregl.Marker({
+          element
+        })
+        .setLngLat(
+          [lng, lat]
+        )
+        .setPopup(
+          popup
+        )
+        .addTo(
+          map
+        );
+
+
+      hydrantMarkers.push(
+        hydrantMarker
+      );
     }
 
-    function refreshRoutes() {
-      let s = document.getElementById("savedRoutes");
-      s.innerHTML = '<option value="">Select old route</option>';
 
-      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
+    status(
+      `${features.length} hydrants loaded in this map area.`
+    );
 
-      routes.forEach((r, i) => {
-        let o = document.createElement("option");
-        o.value = i;
-        o.textContent = `${r.name} - ${r.date}`;
-        s.appendChild(o);
-      });
+
+  } catch (error) {
+
+    console.error(
+      error
+    );
+
+    status(
+      "Hydrant data could not be loaded right now."
+    );
+  }
+}
+
+
+/*
+  Refresh hydrants when user
+  moves to another part of city
+*/
+
+let hydrantRefreshTimer =
+  null;
+
+
+map.on(
+  "moveend",
+  () => {
+
+    if (!hydrantsOn) {
+      return;
     }
 
-    function loadRoute() {
-      let i = document.getElementById("savedRoutes").value;
-      if (i === "") return;
+    clearTimeout(
+      hydrantRefreshTimer
+    );
 
-      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
-      let r = routes[i];
+    hydrantRefreshTimer =
+      setTimeout(
+        loadHydrants,
+        500
+      );
+  }
+);
 
-      if (!r) return;
 
-      if (oldRouteLine) map.removeLayer(oldRouteLine);
+/* =========================================================
+   AUTO START LOCATION
+========================================================= */
 
-      let pts = r.points.map(p => L.latLng(p[0], p[1]));
-
-      oldRouteLine = L.polyline(pts, {
-        color: r.color || "#4da6ff",
-        weight: 9,
-        opacity: 0.35,
-        dashArray: "8,8"
-      }).addTo(map);
-
-      map.fitBounds(oldRouteLine.getBounds());
-
-      setResult(`Old route loaded: ${r.name}<br>You can record a new route while old one is showing.`);
-    }
-
-    function deleteRoute() {
-      let i = document.getElementById("savedRoutes").value;
-      if (i === "") {
-        alert("Select route first.");
-        return;
-      }
-
-      let routes = JSON.parse(localStorage.getItem("routes") || "[]");
-      routes.splice(i, 1);
-
-      localStorage.setItem("routes", JSON.stringify(routes));
-
-      if (oldRouteLine) map.removeLayer(oldRouteLine);
-      oldRouteLine = null;
-
-      refreshRoutes();
-      setResult("Route deleted.");
-    }
-
-    async function searchPlace() {
-      let text = document.getElementById("searchBox").value.trim();
-
-      if (!text) {
-        alert("Type street or address first.");
-        return;
-      }
-
-      let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(text + ", Saskatoon, Canada")}&limit=1`;
-
-      let res = await fetch(url);
-      let data = await res.json();
-
-      if (!data.length) {
-        setResult("Place not found.");
-        return;
-      }
-
-      let lat = parseFloat(data[0].lat);
-      let lon = parseFloat(data[0].lon);
-
-      map.setView([lat, lon], 18);
-      checkBlock(lat, lon);
-    }
-
-    map.on("click", e => {
-      if (drawMode) {
-        addDrawPoint(e.latlng.lat, e.latlng.lng);
-      } else {
-        checkBlock(e.latlng.lat, e.latlng.lng);
-      }
-    });
+map.on(
+  "load",
+  () => {
 
     refreshRoutes();
 
-    setTimeout(() => {
-      map.invalidateSize();
-      updateCompass();
-    }, 500);
-  </script>
+    status(
+      "Map ready. Requesting your location..."
+    );
+
+
+    /*
+      Try automatically.
+      If browser requires interaction,
+      user can press Start Drive.
+    */
+
+    setTimeout(
+      () => {
+
+        startFollowMode();
+
+      },
+      700
+    );
+  }
+);
+</script>
 </body>
 </html>
