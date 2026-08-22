@@ -159,7 +159,7 @@ select {
   line-height: 1.45;
 }
 
-/* NIGHT MODE */
+/* NIGHT MODE UI */
 
 body.dark #toolbar {
   background: rgba(24,24,24,.97);
@@ -182,13 +182,6 @@ body.dark input {
 body.dark #status {
   background: #292929;
   color: white;
-}
-
-body.dark .maplibregl-canvas {
-  filter:
-    brightness(.72)
-    contrast(1.12)
-    saturate(.75);
 }
 
 /* GPS ARROW */
@@ -382,6 +375,17 @@ body.dark #credit {
 <script>
 
 /* ===========================
+   MAP TILE SOURCES
+=========================== */
+
+const LIGHT_TILES =
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+const DARK_TILES =
+  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png";
+
+
+/* ===========================
    MAP
 =========================== */
 
@@ -395,10 +399,11 @@ const map = new maplibregl.Map({
       osm: {
         type: "raster",
         tiles: [
-          "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          LIGHT_TILES
         ],
         tileSize: 256,
-        attribution: "© OpenStreetMap contributors"
+        attribution:
+          "© OpenStreetMap contributors © CARTO"
       }
     },
 
@@ -455,7 +460,9 @@ function setMenu(open) {
 
   menuButton.setAttribute(
     "aria-label",
-    open ? "Close menu" : "Open menu"
+    open
+      ? "Close menu"
+      : "Open menu"
   );
 
   setTimeout(
@@ -472,7 +479,9 @@ menuButton.addEventListener(
 
 
 if (
-  window.matchMedia("(max-width: 650px)").matches
+  window.matchMedia(
+    "(max-width: 650px)"
+  ).matches
 ) {
   setMenu(false);
 }
@@ -505,7 +514,8 @@ let recordedPoints = [];
 
 let hydrantsOn = false;
 
-let blockCache = new Map();
+let blockCache =
+  new Map();
 
 let hydrantReloadTimer = null;
 
@@ -531,9 +541,12 @@ function selectedColor() {
 
 
 function blockRange(number) {
-  const n = parseInt(number);
+  const n =
+    parseInt(number);
 
-  if (Number.isNaN(n)) {
+  if (
+    Number.isNaN(n)
+  ) {
     return null;
   }
 
@@ -543,19 +556,23 @@ function blockRange(number) {
   return {
     start,
     end: start + 99,
-    text: `${start}-${start + 99}`
+    text:
+      `${start}-${start + 99}`
   };
 }
 
 
 function distanceMetres(a, b) {
-  const R = 6371000;
+  const R =
+    6371000;
 
   const lat1 =
-    a.lat * Math.PI / 180;
+    a.lat *
+    Math.PI / 180;
 
   const lat2 =
-    b.lat * Math.PI / 180;
+    b.lat *
+    Math.PI / 180;
 
   const dLat =
     (b.lat - a.lat) *
@@ -589,10 +606,11 @@ function routeDistance(points) {
     i < points.length;
     i++
   ) {
-    total += distanceMetres(
-      points[i - 1],
-      points[i]
-    );
+    total +=
+      distanceMetres(
+        points[i - 1],
+        points[i]
+      );
   }
 
   return total;
@@ -601,10 +619,12 @@ function routeDistance(points) {
 
 function calculateBearing(a, b) {
   const lat1 =
-    a.lat * Math.PI / 180;
+    a.lat *
+    Math.PI / 180;
 
   const lat2 =
-    b.lat * Math.PI / 180;
+    b.lat *
+    Math.PI / 180;
 
   const dLng =
     (b.lng - a.lng) *
@@ -632,7 +652,7 @@ function calculateBearing(a, b) {
 
 
 /* ===========================
-   NIGHT MODE
+   TRUE NIGHT MODE
 =========================== */
 
 document
@@ -640,12 +660,33 @@ document
   .addEventListener(
     "click",
     () => {
-      darkMode = !darkMode;
 
-      document.body.classList.toggle(
-        "dark",
-        darkMode
-      );
+      darkMode =
+        !darkMode;
+
+      document.body
+        .classList.toggle(
+          "dark",
+          darkMode
+        );
+
+      const source =
+        map.getSource("osm");
+
+      if (source) {
+        source.setTiles([
+          darkMode
+            ? DARK_TILES
+            : LIGHT_TILES
+        ]);
+      }
+
+      document
+        .getElementById("darkBtn")
+        .textContent =
+          darkMode
+            ? "☀️ Day"
+            : "🌙 Night";
 
       status(
         darkMode
@@ -733,8 +774,11 @@ async function reverseGeocode(
 
   } catch {
     return {
-      road: "Street unknown",
-      house: null
+      road:
+        "Street unknown",
+
+      house:
+        null
     };
   }
 }
@@ -757,7 +801,8 @@ async function findNearbyBlock(
 
   const timer =
     setTimeout(
-      () => controller.abort(),
+      () =>
+        controller.abort(),
       3500
     );
 
@@ -820,7 +865,7 @@ out center tags 30;
     }
 
     numbers.sort(
-      (a, b) => a - b
+      (a,b) => a-b
     );
 
     const middle =
@@ -830,7 +875,9 @@ out center tags 30;
         )
       ];
 
-    return blockRange(middle);
+    return blockRange(
+      middle
+    );
 
   } catch {
     clearTimeout(timer);
@@ -882,12 +929,16 @@ async function showBlock(
     )
   );
 
-  if (addressMarker) {
+  if (
+    addressMarker
+  ) {
     addressMarker.remove();
   }
 
   const box =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   box.className =
     "address-marker";
@@ -915,10 +966,12 @@ async function showBlock(
   box.addEventListener(
     "click",
     event => {
+
       event.stopPropagation();
 
       addressMarker?.remove();
-      addressMarker = null;
+      addressMarker =
+        null;
     }
   );
 }
@@ -955,7 +1008,9 @@ map.on(
 async function searchPlace() {
   const text =
     document
-      .getElementById("searchBox")
+      .getElementById(
+        "searchBox"
+      )
       .value
       .trim();
 
@@ -963,7 +1018,9 @@ async function searchPlace() {
     return;
   }
 
-  status("Searching...");
+  status(
+    "Searching..."
+  );
 
   try {
     const url =
@@ -983,18 +1040,27 @@ async function searchPlace() {
       await response.json();
 
     if (!data.length) {
-      status("Address not found.");
+      status(
+        "Address not found."
+      );
       return;
     }
 
     const lat =
-      Number(data[0].lat);
+      Number(
+        data[0].lat
+      );
 
     const lng =
-      Number(data[0].lon);
+      Number(
+        data[0].lon
+      );
 
     map.flyTo({
-      center: [lng, lat],
+      center: [
+        lng,
+        lat
+      ],
       zoom: 18,
       duration: 650
     });
@@ -1005,13 +1071,17 @@ async function searchPlace() {
     );
 
   } catch {
-    status("Search failed.");
+    status(
+      "Search failed."
+    );
   }
 }
 
 
 document
-  .getElementById("searchBtn")
+  .getElementById(
+    "searchBtn"
+  )
   .addEventListener(
     "click",
     searchPlace
@@ -1019,12 +1089,15 @@ document
 
 
 document
-  .getElementById("searchBox")
+  .getElementById(
+    "searchBox"
+  )
   .addEventListener(
     "keydown",
     event => {
       if (
-        event.key === "Enter"
+        event.key ===
+        "Enter"
       ) {
         searchPlace();
       }
@@ -1038,18 +1111,24 @@ document
 
 function createGpsArrow() {
   const wrapper =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   wrapper.className =
     "drive-arrow";
 
   const arrow =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   arrow.className =
     "drive-arrow-inner";
 
-  wrapper.appendChild(arrow);
+  wrapper.appendChild(
+    arrow
+  );
 
   return wrapper;
 }
@@ -1095,7 +1174,9 @@ function updateGpsMarker(
 =========================== */
 
 document
-  .getElementById("gpsBtn")
+  .getElementById(
+    "gpsBtn"
+  )
   .addEventListener(
     "click",
     getAccurateGPS
@@ -1109,6 +1190,7 @@ function getAccurateGPS() {
     status(
       "GPS not supported."
     );
+
     return;
   }
 
@@ -1124,6 +1206,7 @@ function getAccurateGPS() {
       .watchPosition(
 
         position => {
+
           readings++;
 
           if (
@@ -1204,11 +1287,16 @@ function getAccurateGPS() {
 =========================== */
 
 document
-  .getElementById("followBtn")
+  .getElementById(
+    "followBtn"
+  )
   .addEventListener(
     "click",
     () => {
-      if (followMode) {
+
+      if (
+        followMode
+      ) {
         stopDrive();
       } else {
         startDrive();
@@ -1227,28 +1315,39 @@ function startDrive() {
     return;
   }
 
-  followMode = true;
+  followMode =
+    true;
 
-  lastGps = null;
+  lastGps =
+    null;
 
   lastHeading =
     map.getBearing() || 0;
 
-  lastDriveMapUpdate = 0;
+  lastDriveMapUpdate =
+    0;
 
   setMenu(false);
 
   document
-    .getElementById("followBtn")
-    .classList.add("active");
+    .getElementById(
+      "followBtn"
+    )
+    .classList.add(
+      "active"
+    );
 
   document
-    .getElementById("followBtn")
+    .getElementById(
+      "followBtn"
+    )
     .textContent =
       "🚗 Stop Drive";
 
   document
-    .getElementById("driveInfo")
+    .getElementById(
+      "driveInfo"
+    )
     .style.display =
       "block";
 
@@ -1256,14 +1355,15 @@ function startDrive() {
     "Drive mode started."
   );
 
-
   followWatchId =
     navigator.geolocation
       .watchPosition(
 
         position => {
 
-          if (!followMode) {
+          if (
+            !followMode
+          ) {
             return;
           }
 
@@ -1284,12 +1384,6 @@ function startDrive() {
 
           let heading =
             position.coords.heading;
-
-
-          /*
-            Phone heading may be missing.
-            Calculate it from movement.
-          */
 
           if (
             (
@@ -1323,11 +1417,6 @@ function startDrive() {
             }
           }
 
-
-          /*
-            Smooth heading changes.
-          */
-
           if (
             heading != null &&
             !Number.isNaN(
@@ -1351,23 +1440,15 @@ function startDrive() {
               ) % 360;
           }
 
-
           /*
-            Keep arrow facing forward.
-            The map rotates underneath it.
+          Arrow stays facing top.
+          The map rotates underneath it.
           */
-
           updateGpsMarker(
             lng,
             lat,
             0
           );
-
-
-          /*
-            Update map about once per second.
-            Much safer on phones.
-          */
 
           if (
             now -
@@ -1406,7 +1487,6 @@ function startDrive() {
               }
             }
 
-
             map.jumpTo({
               center: [
                 lng,
@@ -1423,7 +1503,6 @@ function startDrive() {
             });
           }
 
-
           let speedKmh =
             null;
 
@@ -1437,9 +1516,10 @@ function startDrive() {
               );
           }
 
-
           document
-            .getElementById("driveInfo")
+            .getElementById(
+              "driveInfo"
+            )
             .innerHTML =
               (
                 speedKmh == null
@@ -1449,13 +1529,6 @@ function startDrive() {
               `GPS ±${Math.round(
                 accuracy
               )} m`;
-
-
-          /*
-            Hydrants should not reload
-            every second while driving.
-            Only reload about every 15 sec.
-          */
 
           if (
             hydrantsOn &&
@@ -1468,7 +1541,6 @@ function startDrive() {
 
             loadHydrants();
           }
-
 
           lastGps = {
             lat,
@@ -1520,16 +1592,24 @@ function stopDrive() {
   }
 
   document
-    .getElementById("followBtn")
-    .classList.remove("active");
+    .getElementById(
+      "followBtn"
+    )
+    .classList.remove(
+      "active"
+    );
 
   document
-    .getElementById("followBtn")
+    .getElementById(
+      "followBtn"
+    )
     .textContent =
       "🚗 Start Drive";
 
   document
-    .getElementById("driveInfo")
+    .getElementById(
+      "driveInfo"
+    )
     .style.display =
       "none";
 
@@ -1654,13 +1734,18 @@ function removeLine(id) {
 =========================== */
 
 document
-  .getElementById("drawBtn")
+  .getElementById(
+    "drawBtn"
+  )
   .addEventListener(
     "click",
     () => {
-      drawing = true;
 
-      drawPoints = [];
+      drawing =
+        true;
+
+      drawPoints =
+        [];
 
       removeLine(
         "drawRoute"
@@ -1703,10 +1788,13 @@ function addDrawPoint(
 
 
 document
-  .getElementById("finishDrawBtn")
+  .getElementById(
+    "finishDrawBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       drawing =
         false;
 
@@ -1749,13 +1837,18 @@ document
 
 
 document
-  .getElementById("clearDrawBtn")
+  .getElementById(
+    "clearDrawBtn"
+  )
   .addEventListener(
     "click",
     () => {
-      drawing = false;
 
-      drawPoints = [];
+      drawing =
+        false;
+
+      drawPoints =
+        [];
 
       removeLine(
         "drawRoute"
@@ -1773,7 +1866,9 @@ document
 =========================== */
 
 document
-  .getElementById("recordBtn")
+  .getElementById(
+    "recordBtn"
+  )
   .addEventListener(
     "click",
     startRecording
@@ -1791,9 +1886,11 @@ function startRecording() {
     return;
   }
 
-  recordedPoints = [];
+  recordedPoints =
+    [];
 
-  recording = true;
+  recording =
+    true;
 
   recordingPaused =
     false;
@@ -1900,7 +1997,9 @@ function startRecording() {
 
 
 document
-  .getElementById("pauseBtn")
+  .getElementById(
+    "pauseBtn"
+  )
   .addEventListener(
     "click",
     () => {
@@ -1919,7 +2018,9 @@ document
 
 
 document
-  .getElementById("resumeBtn")
+  .getElementById(
+    "resumeBtn"
+  )
   .addEventListener(
     "click",
     () => {
@@ -1938,10 +2039,13 @@ document
 
 
 document
-  .getElementById("stopBtn")
+  .getElementById(
+    "stopBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       recording =
         false;
 
@@ -1973,10 +2077,13 @@ document
 
 
 document
-  .getElementById("saveBtn")
+  .getElementById(
+    "saveBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       if (
         recordedPoints.length < 2
       ) {
@@ -2073,6 +2180,7 @@ function refreshRoutes() {
   getRoutes()
     .forEach(
       route => {
+
         const option =
           document.createElement(
             "option"
@@ -2095,10 +2203,13 @@ function refreshRoutes() {
 
 
 document
-  .getElementById("loadRouteBtn")
+  .getElementById(
+    "loadRouteBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       const id =
         Number(
           document
@@ -2143,6 +2254,7 @@ document
       route.points
         .forEach(
           point => {
+
             bounds.extend([
               point.lng,
               point.lat
@@ -2166,10 +2278,13 @@ document
 
 
 document
-  .getElementById("hideRouteBtn")
+  .getElementById(
+    "hideRouteBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       removeLine(
         "oldRoute"
       );
@@ -2182,10 +2297,13 @@ document
 
 
 document
-  .getElementById("deleteRouteBtn")
+  .getElementById(
+    "deleteRouteBtn"
+  )
   .addEventListener(
     "click",
     () => {
+
       const id =
         Number(
           document
@@ -2243,7 +2361,9 @@ const REPORT_HYDRANT_URL =
 
 
 document
-  .getElementById("hydrantBtn")
+  .getElementById(
+    "hydrantBtn"
+  )
   .addEventListener(
     "click",
     async () => {
@@ -2257,11 +2377,17 @@ document
       }
 
       document
-        .getElementById("hydrantBtn")
-        .classList.add("active");
+        .getElementById(
+          "hydrantBtn"
+        )
+        .classList.add(
+          "active"
+        );
 
       document
-        .getElementById("hydrantBtn")
+        .getElementById(
+          "hydrantBtn"
+        )
         .textContent =
           "🔥 Hydrants ON";
 
@@ -2413,6 +2539,7 @@ async function loadHydrants() {
         .setData(data);
 
     } else {
+
       map.addSource(
         "hydrants",
         {
@@ -2571,8 +2698,8 @@ async function loadHydrants() {
 }
 
 
-/* Reload only when NOT driving.
-   Drive mode has its own 15-second refresh. */
+/* Hydrants refresh after map movement,
+   but not constantly during Drive Mode */
 
 map.on(
   "moveend",
@@ -2605,6 +2732,7 @@ map.on(
 map.on(
   "load",
   () => {
+
     refreshRoutes();
 
     status(
@@ -2613,13 +2741,16 @@ map.on(
 
     setTimeout(
       () => {
+
         if (
           navigator.geolocation
         ) {
+
           navigator.geolocation
             .getCurrentPosition(
 
               position => {
+
                 const lat =
                   position.coords.latitude;
 
@@ -2637,11 +2768,8 @@ map.on(
                     lng,
                     lat
                   ],
-
                   zoom: 16,
-
-                  duration:
-                    600
+                  duration: 600
                 });
               },
 
