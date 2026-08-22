@@ -8,7 +8,7 @@
   content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 >
 
-<title>Faran Saskatoon Map</title>
+<title>Saskatoon Block Finder</title>
 
 <link
   href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
@@ -19,25 +19,93 @@
 html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   font-family: Arial, sans-serif;
-  background: #f4f4f4;
 }
 
 #app {
+  position: relative;
+  width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
+#map {
+  position: absolute;
+  inset: 0;
+}
+
+/* =========================
+   MENU BUTTON
+========================= */
+
+#menuButton {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 30;
+
+  width: 48px;
+  height: 48px;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: rgba(255,255,255,.96);
+  color: #111;
+
+  font-size: 27px;
+  font-weight: bold;
+
+  box-shadow: 0 2px 9px rgba(0,0,0,.35);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+}
+
+/* =========================
+   MENU
+========================= */
+
 #toolbar {
-  padding: 8px;
-  background: white;
-  z-index: 10;
+  position: absolute;
+  top: 68px;
+  left: 10px;
+
+  z-index: 29;
+
+  width: min(365px, calc(100vw - 20px));
+  max-height: calc(100vh - 90px);
+
+  overflow-y: auto;
+
+  padding: 10px;
+
+  box-sizing: border-box;
+
+  border-radius: 14px;
+
+  background: rgba(255,255,255,.97);
+
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+
+  transition:
+    opacity .2s ease,
+    transform .2s ease;
+}
+
+#toolbar.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-110%);
 }
 
 #toolbar h2 {
-  margin: 2px 0 7px;
+  margin: 2px 0 9px;
   font-size: 19px;
 }
 
@@ -45,17 +113,23 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-bottom: 5px;
+  margin-bottom: 7px;
 }
 
 button,
 select,
 input {
-  border: 1px solid #aaa;
+  font-size: 15px;
+  min-height: 42px;
+
   border-radius: 8px;
-  padding: 9px 10px;
-  font-size: 14px;
+  border: 1px solid #aaa;
+
   background: white;
+
+  padding: 8px 10px;
+
+  box-sizing: border-box;
 }
 
 button {
@@ -68,40 +142,38 @@ button.active {
 }
 
 input {
-  flex: 1;
-  min-width: 170px;
+  width: 100%;
+}
+
+select {
+  max-width: 100%;
 }
 
 #status {
-  background: #fff3c4;
-  padding: 8px;
+  padding: 9px;
+  margin-top: 5px;
+
   border-radius: 8px;
-  font-size: 14px;
+
+  background: #fff3c4;
+
+  font-size: 13px;
   font-weight: bold;
+
+  line-height: 1.45;
 }
 
-#mapWrap {
-  position: relative;
-  flex: 1;
-  min-height: 350px;
-}
+/* =========================
+   NIGHT MODE
+========================= */
 
-#map {
-  position: absolute;
-  inset: 0;
-}
-
-body.dark {
-  background: #111;
+body.dark #toolbar {
+  background: rgba(24,24,24,.97);
   color: white;
 }
 
-body.dark #toolbar {
-  background: #1d1d1d;
-}
-
-body.dark #status {
-  background: #292929;
+body.dark #menuButton {
+  background: #222;
   color: white;
 }
 
@@ -113,82 +185,148 @@ body.dark input {
   border-color: #666;
 }
 
-body.dark .maplibregl-canvas {
-  filter: brightness(.72) contrast(1.15);
+body.dark #status {
+  background: #292929;
+  color: white;
 }
 
-/* Driving arrow */
+body.dark .maplibregl-canvas {
+  filter:
+    brightness(.73)
+    contrast(1.12)
+    saturate(.75);
+}
+
+/* =========================
+   GPS ARROW
+========================= */
+
 .drive-arrow {
-  width: 34px;
-  height: 34px;
-  transform-origin: center;
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .drive-arrow-inner {
   width: 0;
   height: 0;
+
   border-left: 13px solid transparent;
   border-right: 13px solid transparent;
   border-bottom: 32px solid #1976d2;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,.55));
+
+  filter:
+    drop-shadow(0 2px 3px rgba(0,0,0,.6));
 }
 
-/* clicked address bubble */
+/* =========================
+   ADDRESS LABEL
+========================= */
+
 .address-marker {
   background: rgba(255,255,255,.96);
   color: #111;
+
   border: 2px solid #111;
   border-radius: 9px;
+
   padding: 6px 8px;
-  min-width: 115px;
+
+  min-width: 120px;
   max-width: 190px;
+
   text-align: center;
+
   font-weight: bold;
   font-size: 12px;
-  box-shadow: 0 2px 7px rgba(0,0,0,.35);
+
+  box-shadow:
+    0 2px 7px rgba(0,0,0,.35);
+
   cursor: pointer;
 }
 
+/* =========================
+   HYDRANTS
+========================= */
+
 .hydrant-marker {
-  width: 22px;
-  height: 22px;
+  width: 25px;
+  height: 25px;
+
   border-radius: 50%;
+
   background: #e53935;
   color: white;
+
   border: 2px solid white;
-  box-shadow: 0 1px 5px rgba(0,0,0,.55);
+
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+
+  font-size: 13px;
+  font-weight: bold;
+
+  box-shadow:
+    0 1px 5px rgba(0,0,0,.6);
+
   cursor: pointer;
 }
 
+/* =========================
+   DRIVE INFO
+========================= */
+
 #driveInfo {
   position: absolute;
-  bottom: 35px;
+
   left: 50%;
+  bottom: 40px;
+
   transform: translateX(-50%);
-  z-index: 5;
+
+  z-index: 20;
+
   background: rgba(20,20,20,.88);
   color: white;
+
   padding: 8px 14px;
+
   border-radius: 18px;
+
   font-size: 13px;
+  font-weight: bold;
+
   display: none;
+
   white-space: nowrap;
 }
 
+/* =========================
+   CREDIT
+========================= */
+
 #credit {
   position: absolute;
+
   bottom: 7px;
   left: 50%;
+
   transform: translateX(-50%);
-  z-index: 5;
+
+  z-index: 20;
+
   background: rgba(255,255,255,.9);
   color: #222;
-  border-radius: 12px;
+
   padding: 4px 10px;
+
+  border-radius: 12px;
+
   font-size: 11px;
   font-weight: bold;
 }
@@ -197,83 +335,184 @@ body.dark #credit {
   background: rgba(20,20,20,.9);
   color: white;
 }
-
-.maplibregl-ctrl-top-right {
-  margin-top: 4px;
-}
 </style>
 </head>
 
 <body>
+
 <div id="app">
+
+  <div id="map"></div>
+
+  <button
+    id="menuButton"
+    aria-label="Open menu"
+  >
+    ⋮
+  </button>
+
 
   <div id="toolbar">
 
     <h2>Saskatoon Block Finder</h2>
 
-    <div class="controls">
-      <button id="followBtn">🚗 Start Drive</button>
-      <button id="gpsBtn">📍 GPS</button>
-      <button id="darkBtn">🌙 Night</button>
-      <button id="northBtn">🧭 North</button>
-      <button id="hydrantBtn">🔥 Hydrants</button>
-    </div>
 
     <div class="controls">
-      <button id="drawBtn">✏️ Draw</button>
-      <button id="finishDrawBtn">✅ Finish + Save</button>
-      <button id="clearDrawBtn">🗑 Clear</button>
+
+      <button id="followBtn">
+        🚗 Start Drive
+      </button>
+
+      <button id="gpsBtn">
+        📍 GPS
+      </button>
+
+      <button id="darkBtn">
+        🌙 Night
+      </button>
+
+      <button id="northBtn">
+        🧭 North
+      </button>
+
+    </div>
+
+
+    <div class="controls">
+
+      <button id="hydrantBtn">
+        🔥 Hydrants
+      </button>
+
+    </div>
+
+
+    <div class="controls">
+
+      <button id="drawBtn">
+        ✏️ Draw
+      </button>
+
+      <button id="finishDrawBtn">
+        ✅ Finish + Save
+      </button>
+
+      <button id="clearDrawBtn">
+        🗑 Clear
+      </button>
+
+    </div>
+
+
+    <div class="controls">
 
       <select id="routeColor">
-        <option value="#2196f3">Blue</option>
-        <option value="#f44336">Red</option>
-        <option value="#4caf50">Green</option>
-        <option value="#ff9800">Orange</option>
-        <option value="#9c27b0">Purple</option>
-        <option value="#00bcd4">Cyan</option>
+
+        <option value="#2196f3">
+          Blue
+        </option>
+
+        <option value="#f44336">
+          Red
+        </option>
+
+        <option value="#4caf50">
+          Green
+        </option>
+
+        <option value="#ff9800">
+          Orange
+        </option>
+
+        <option value="#9c27b0">
+          Purple
+        </option>
+
+        <option value="#00bcd4">
+          Cyan
+        </option>
+
       </select>
+
     </div>
 
-    <div class="controls">
-      <button id="recordBtn">🔴 Record</button>
-      <button id="pauseBtn">⏸ Pause</button>
-      <button id="resumeBtn">▶ Resume</button>
-      <button id="stopBtn">⏹ Stop</button>
-      <button id="saveBtn">💾 Save</button>
-    </div>
 
     <div class="controls">
+
+      <button id="recordBtn">
+        🔴 Record
+      </button>
+
+      <button id="pauseBtn">
+        ⏸ Pause
+      </button>
+
+      <button id="resumeBtn">
+        ▶ Resume
+      </button>
+
+      <button id="stopBtn">
+        ⏹ Stop
+      </button>
+
+      <button id="saveBtn">
+        💾 Save
+      </button>
+
+    </div>
+
+
+    <div class="controls">
+
       <select id="savedRoutes">
-        <option value="">Select old route</option>
+
+        <option value="">
+          Select old route
+        </option>
+
       </select>
 
-      <button id="loadRouteBtn">Show Route</button>
-      <button id="hideRouteBtn">Hide</button>
-      <button id="deleteRouteBtn">Delete</button>
+      <button id="loadRouteBtn">
+        Show Route
+      </button>
+
+      <button id="hideRouteBtn">
+        Hide Route
+      </button>
+
+      <button id="deleteRouteBtn">
+        Delete Route
+      </button>
+
     </div>
 
+
     <div class="controls">
+
       <input
         id="searchBox"
-        placeholder="Search Saskatoon street or address"
+        placeholder="Search Saskatoon street/address"
       >
-      <button id="searchBtn">Search</button>
+
+      <button id="searchBtn">
+        Search
+      </button>
+
     </div>
 
+
     <div id="status">
-      Tap a street to see its street name and block.
+      Tap a street to find its block.
     </div>
 
   </div>
 
-  <div id="mapWrap">
-    <div id="map"></div>
 
-    <div id="driveInfo"></div>
+  <div id="driveInfo"></div>
 
-    <div id="credit">
-      Saskatoon Block Finder • Made by Faran
-    </div>
+
+  <div id="credit">
+    Saskatoon Block Finder • Made by Faran
   </div>
 
 </div>
@@ -281,73 +520,185 @@ body.dark #credit {
 
 <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
 
-<script>
-/* =========================================================
-   BASIC MAP
-========================================================= */
 
-const SASKATOON = [-106.6700, 52.1332];
+<script>
+
+/* =====================================================
+   MAP
+===================================================== */
 
 const map = new maplibregl.Map({
+
   container: "map",
 
   style: {
+
     version: 8,
 
     sources: {
+
       osm: {
+
         type: "raster",
+
         tiles: [
           "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         ],
+
         tileSize: 256,
-        attribution: "© OpenStreetMap contributors"
+
+        attribution:
+          "© OpenStreetMap contributors"
+
       }
+
     },
 
+
     layers: [
+
       {
+
         id: "osm",
+
         type: "raster",
+
         source: "osm"
+
       }
+
     ]
+
   },
 
-  center: SASKATOON,
+
+  center: [
+    -106.6700,
+    52.1332
+  ],
+
   zoom: 12,
 
-  /* 360 rotation */
   bearing: 0,
+
   pitch: 0,
 
   dragRotate: true,
+
   touchPitch: false
+
 });
 
 
-/* Built-in working compass */
+/* compass + zoom */
+
 map.addControl(
+
   new maplibregl.NavigationControl({
+
     showCompass: true,
+
     showZoom: true,
+
     visualizePitch: true
+
   }),
+
   "top-right"
+
 );
 
 
-/* =========================================================
-   GLOBAL STATE
-========================================================= */
+/* =====================================================
+   MENU
+===================================================== */
+
+const toolbar =
+  document.getElementById(
+    "toolbar"
+  );
+
+const menuButton =
+  document.getElementById(
+    "menuButton"
+  );
+
+let menuOpen = true;
+
+
+function setMenu(open) {
+
+  menuOpen = open;
+
+
+  toolbar.classList.toggle(
+    "hidden",
+    !open
+  );
+
+
+  menuButton.textContent =
+    open
+      ? "×"
+      : "⋮";
+
+
+  menuButton.setAttribute(
+
+    "aria-label",
+
+    open
+      ? "Close menu"
+      : "Open menu"
+
+  );
+
+
+  setTimeout(
+    () => map.resize(),
+    220
+  );
+
+}
+
+
+menuButton.addEventListener(
+
+  "click",
+
+  () => {
+
+    setMenu(
+      !menuOpen
+    );
+
+  }
+
+);
+
+
+/* phone starts full-screen */
+
+if (
+  window.matchMedia(
+    "(max-width: 650px)"
+  ).matches
+) {
+
+  setMenu(false);
+
+}
+
+
+/* =====================================================
+   STATE
+===================================================== */
 
 let darkMode = false;
 
 let addressMarker = null;
 
 let gpsMarker = null;
-
-let gpsAccuracySourceAdded = false;
 
 let followMode = false;
 
@@ -369,69 +720,137 @@ let recordingWatchId = null;
 
 let recordedPoints = [];
 
-let loadedOldRoute = null;
-
 let hydrantsOn = false;
 
-let hydrantMarkers = [];
+let blockCache =
+  new Map();
 
-let blockCache = new Map();
 
-
-/* =========================================================
+/* =====================================================
    HELPERS
-========================================================= */
+===================================================== */
 
-function status(html) {
-  document.getElementById("status").innerHTML = html;
+function status(text) {
+
+  document
+    .getElementById(
+      "status"
+    )
+    .innerHTML = text;
+
 }
+
 
 function selectedColor() {
-  return document.getElementById("routeColor").value;
+
+  return document
+    .getElementById(
+      "routeColor"
+    )
+    .value;
+
 }
+
 
 function blockRange(number) {
 
-  const n = parseInt(number);
+  const n =
+    parseInt(number);
 
-  if (isNaN(n)) {
+
+  if (
+    Number.isNaN(n)
+  ) {
+
     return null;
+
   }
 
-  const start = Math.floor(n / 100) * 100;
+
+  const start =
+    Math.floor(
+      n / 100
+    ) * 100;
+
 
   return {
-    start: start,
-    end: start + 99,
-    text: `${start}-${start + 99}`
+
+    start,
+
+    end:
+      start + 99,
+
+    text:
+      `${start}-${start + 99}`
+
   };
+
 }
 
 
 function distanceMetres(a, b) {
 
-  const R = 6371000;
+  const R =
+    6371000;
 
-  const lat1 = a.lat * Math.PI / 180;
-  const lat2 = b.lat * Math.PI / 180;
+
+  const lat1 =
+    a.lat *
+    Math.PI / 180;
+
+
+  const lat2 =
+    b.lat *
+    Math.PI / 180;
+
 
   const dLat =
-    (b.lat - a.lat) * Math.PI / 180;
+    (
+      b.lat -
+      a.lat
+    ) *
+    Math.PI / 180;
 
-  const dLon =
-    (b.lng - a.lng) * Math.PI / 180;
 
-  const x =
-    Math.sin(dLat / 2) ** 2 +
+  const dLng =
+    (
+      b.lng -
+      a.lng
+    ) *
+    Math.PI / 180;
+
+
+  const h =
+
+    Math.sin(
+      dLat / 2
+    ) ** 2 +
+
     Math.cos(lat1) *
-    Math.cos(lat2) *
-    Math.sin(dLon / 2) ** 2;
 
-  return R * 2 *
+    Math.cos(lat2) *
+
+    Math.sin(
+      dLng / 2
+    ) ** 2;
+
+
+  return (
+
+    R * 2 *
+
     Math.atan2(
-      Math.sqrt(x),
-      Math.sqrt(1 - x)
-    );
+
+      Math.sqrt(h),
+
+      Math.sqrt(
+        1 - h
+      )
+
+    )
+
+  );
+
 }
 
 
@@ -439,164 +858,270 @@ function routeDistance(points) {
 
   let total = 0;
 
-  for (let i = 1; i < points.length; i++) {
-    total += distanceMetres(
-      points[i - 1],
-      points[i]
-    );
+
+  for (
+    let i = 1;
+    i < points.length;
+    i++
+  ) {
+
+    total +=
+
+      distanceMetres(
+
+        points[i - 1],
+
+        points[i]
+
+      );
+
   }
 
+
   return total;
+
 }
 
-
-/* Calculate direction between GPS positions */
 
 function calculateBearing(a, b) {
 
-  const lat1 = a.lat * Math.PI / 180;
-  const lat2 = b.lat * Math.PI / 180;
+  const lat1 =
+    a.lat *
+    Math.PI / 180;
 
-  const dLon =
-    (b.lng - a.lng) * Math.PI / 180;
+
+  const lat2 =
+    b.lat *
+    Math.PI / 180;
+
+
+  const dLng =
+    (
+      b.lng -
+      a.lng
+    ) *
+    Math.PI / 180;
+
 
   const y =
-    Math.sin(dLon) *
+
+    Math.sin(dLng) *
+
     Math.cos(lat2);
 
+
   const x =
+
     Math.cos(lat1) *
-    Math.sin(lat2) -
+
+    Math.sin(lat2)
+
+    -
+
     Math.sin(lat1) *
+
     Math.cos(lat2) *
-    Math.cos(dLon);
+
+    Math.cos(dLng);
+
 
   let bearing =
-    Math.atan2(y, x) * 180 / Math.PI;
 
-  return (bearing + 360) % 360;
+    Math.atan2(
+      y,
+      x
+    ) *
+
+    180 / Math.PI;
+
+
+  return (
+    bearing + 360
+  ) % 360;
+
 }
 
 
-/* =========================================================
-   DARK MODE
-========================================================= */
+/* =====================================================
+   NIGHT MODE
+===================================================== */
 
 document
-  .getElementById("darkBtn")
-  .addEventListener("click", () => {
+  .getElementById(
+    "darkBtn"
+  )
+  .addEventListener(
 
-    darkMode = !darkMode;
+    "click",
 
-    document.body.classList.toggle(
-      "dark",
-      darkMode
-    );
+    () => {
 
-    status(
-      darkMode
-        ? "Night mode ON."
-        : "Night mode OFF."
-    );
-  });
+      darkMode =
+        !darkMode;
 
 
-/* =========================================================
+      document.body
+        .classList.toggle(
+          "dark",
+          darkMode
+        );
+
+
+      status(
+
+        darkMode
+          ? "Night mode ON."
+          : "Night mode OFF."
+
+      );
+
+    }
+
+  );
+
+
+/* =====================================================
    NORTH
-========================================================= */
+===================================================== */
 
 document
-  .getElementById("northBtn")
-  .addEventListener("click", () => {
+  .getElementById(
+    "northBtn"
+  )
+  .addEventListener(
 
-    map.easeTo({
-      bearing: 0,
-      duration: 500
-    });
-  });
+    "click",
+
+    () => {
+
+      map.easeTo({
+
+        bearing: 0,
+
+        duration: 400
+
+      });
+
+    }
+
+  );
 
 
-/* =========================================================
-   ADDRESS / BLOCK LOOKUP
-========================================================= */
+/* =====================================================
+   BLOCK FINDER
+===================================================== */
 
-async function reverseGeocode(lat, lng) {
+async function reverseGeocode(
+  lat,
+  lng
+) {
 
   const key =
-    lat.toFixed(5) + "," +
+
+    lat.toFixed(5) +
+
+    "," +
+
     lng.toFixed(5);
 
-  if (blockCache.has(key)) {
-    return blockCache.get(key);
+
+  if (
+    blockCache.has(key)
+  ) {
+
+    return blockCache.get(
+      key
+    );
+
   }
 
-  const controller =
-    new AbortController();
-
-  const timer =
-    setTimeout(
-      () => controller.abort(),
-      4500
-    );
 
   try {
 
     const url =
+
       "https://nominatim.openstreetmap.org/reverse" +
+
       "?format=jsonv2" +
+
       "&addressdetails=1" +
+
       "&zoom=18" +
-      "&lat=" + lat +
-      "&lon=" + lng;
+
+      "&lat=" +
+      lat +
+
+      "&lon=" +
+      lng;
+
 
     const response =
-      await fetch(url, {
-        signal: controller.signal
-      });
+      await fetch(url);
+
 
     const data =
       await response.json();
 
-    clearTimeout(timer);
 
     const a =
       data.address || {};
 
+
     const result = {
 
       road:
+
         a.road ||
+
         a.street ||
+
         a.residential ||
+
         a.pedestrian ||
+
         a.service ||
+
         "Street unknown",
 
+
       house:
+
         a.house_number ||
+
         null
+
     };
 
+
     blockCache.set(
+
       key,
+
       result
+
     );
+
 
     return result;
 
-  } catch (error) {
-
-    clearTimeout(timer);
+  } catch {
 
     return {
-      road: "Street unknown",
-      house: null
+
+      road:
+        "Street unknown",
+
+      house:
+        null
+
     };
+
   }
+
 }
 
 
-/* fallback for empty streets */
+/* find block for empty street */
 
 async function findNearbyBlock(
   lat,
@@ -604,83 +1129,165 @@ async function findNearbyBlock(
   road
 ) {
 
-  if (!road ||
-      road === "Street unknown") {
+  if (
+    !road ||
+    road === "Street unknown"
+  ) {
 
     return null;
+
   }
+
 
   const controller =
     new AbortController();
 
+
   const timer =
     setTimeout(
-      () => controller.abort(),
-      3500
+
+      () =>
+        controller.abort(),
+
+      4000
+
     );
+
 
   try {
 
     const safeRoad =
-      road.replace(/"/g, '\\"');
+      road.replace(
+        /"/g,
+        '\\"'
+      );
+
 
     const query = `
-[out:json][timeout:3];
+
+[out:json][timeout:4];
+
 (
- node["addr:housenumber"]["addr:street"="${safeRoad}"](around:220,${lat},${lng});
- way["addr:housenumber"]["addr:street"="${safeRoad}"](around:220,${lat},${lng});
+
+node
+["addr:housenumber"]
+["addr:street"="${safeRoad}"]
+(around:250,${lat},${lng});
+
+way
+["addr:housenumber"]
+["addr:street"="${safeRoad}"]
+(around:250,${lat},${lng});
+
 );
-out center tags 30;
+
+out center tags 40;
+
 `;
 
+
     const url =
+
       "https://overpass-api.de/api/interpreter?data=" +
-      encodeURIComponent(query);
+
+      encodeURIComponent(
+        query
+      );
+
 
     const response =
-      await fetch(url, {
-        signal: controller.signal
-      });
+      await fetch(
+
+        url,
+
+        {
+          signal:
+            controller.signal
+        }
+
+      );
+
 
     const data =
       await response.json();
 
-    clearTimeout(timer);
 
-    let numbers = [];
-
-    for (const item of data.elements) {
-
-      const n =
-        parseInt(
-          item.tags?.["addr:housenumber"]
-        );
-
-      if (!isNaN(n)) {
-        numbers.push(n);
-      }
-    }
-
-    if (!numbers.length) {
-      return null;
-    }
-
-    numbers.sort(
-      (a, b) => a - b
+    clearTimeout(
+      timer
     );
 
+
+    const numbers = [];
+
+
+    for (
+      const item
+      of data.elements
+    ) {
+
+      const num =
+
+        parseInt(
+
+          item.tags?.[
+            "addr:housenumber"
+          ]
+
+        );
+
+
+      if (
+        !Number.isNaN(
+          num
+        )
+      ) {
+
+        numbers.push(
+          num
+        );
+
+      }
+
+    }
+
+
+    if (
+      !numbers.length
+    ) {
+
+      return null;
+
+    }
+
+
+    numbers.sort(
+      (a,b) => a-b
+    );
+
+
     const middle =
+
       numbers[
-        Math.floor(numbers.length / 2)
+        Math.floor(
+          numbers.length / 2
+        )
       ];
 
-    return blockRange(middle);
+
+    return blockRange(
+      middle
+    );
 
   } catch {
 
-    clearTimeout(timer);
+    clearTimeout(
+      timer
+    );
+
     return null;
+
   }
+
 }
 
 
@@ -693,235 +1300,369 @@ async function showBlock(
     "Finding street and block..."
   );
 
+
   const info =
     await reverseGeocode(
       lat,
       lng
     );
 
+
   let block =
+
     info.house
-      ? blockRange(info.house)
+      ? blockRange(
+          info.house
+        )
       : null;
 
-  /* show road immediately */
 
   status(
+
     `Street: ${info.road}<br>` +
+
     `Block: ${
       block
         ? block.text
-        : "Estimating..."
+        : "Checking..."
     }`
+
   );
+
 
   if (!block) {
 
     block =
+
       await findNearbyBlock(
+
         lat,
+
         lng,
+
         info.road
+
       );
+
   }
 
+
   const blockText =
+
     block
       ? `${block.text} ${info.road}`
       : `Block unknown • ${info.road}`;
 
+
   status(
+
     `Street: ${info.road}<br>` +
+
     `Block: ${blockText}` +
+
     (
       info.house
         ? `<br>Nearest address: ${info.house}`
         : ""
     )
+
   );
 
 
-  /* remove previous */
-  if (addressMarker) {
+  if (
+    addressMarker
+  ) {
+
     addressMarker.remove();
+
   }
 
 
   const box =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
+
 
   box.className =
     "address-marker";
 
+
   box.innerHTML =
+
     (
       info.house
         ? `${info.house}<br>`
         : ""
     ) +
+
     blockText +
+
     "<br><small>Tap to close</small>";
 
 
   addressMarker =
+
     new maplibregl.Marker({
+
       element: box,
+
       anchor: "bottom"
+
     })
-    .setLngLat([lng, lat])
+
+    .setLngLat([
+      lng,
+      lat
+    ])
+
     .addTo(map);
 
 
-  /* Tap it again = disappear */
-
   box.addEventListener(
+
     "click",
+
     event => {
 
       event.stopPropagation();
 
-      if (addressMarker) {
+
+      if (
+        addressMarker
+      ) {
+
         addressMarker.remove();
+
         addressMarker = null;
+
       }
+
     }
+
   );
+
 }
 
 
-/* Map click */
+/* =====================================================
+   MAP CLICK
+===================================================== */
 
 map.on(
+
   "click",
+
   event => {
 
     if (drawing) {
 
       addDrawPoint(
+
         event.lngLat.lat,
+
         event.lngLat.lng
+
       );
 
       return;
+
     }
 
+
     showBlock(
+
       event.lngLat.lat,
+
       event.lngLat.lng
+
     );
+
   }
+
 );
 
 
-/* =========================================================
+/* =====================================================
    SEARCH
-========================================================= */
-
-document
-  .getElementById("searchBtn")
-  .addEventListener(
-    "click",
-    searchPlace
-  );
-
-document
-  .getElementById("searchBox")
-  .addEventListener(
-    "keydown",
-    e => {
-
-      if (e.key === "Enter") {
-        searchPlace();
-      }
-    }
-  );
-
+===================================================== */
 
 async function searchPlace() {
 
   const text =
+
     document
-      .getElementById("searchBox")
+      .getElementById(
+        "searchBox"
+      )
       .value
       .trim();
+
 
   if (!text) {
     return;
   }
 
-  status("Searching...");
+
+  status(
+    "Searching..."
+  );
+
 
   try {
 
     const url =
+
       "https://nominatim.openstreetmap.org/search" +
+
       "?format=jsonv2" +
+
       "&limit=1" +
+
       "&q=" +
+
       encodeURIComponent(
+
         text +
+
         ", Saskatoon, Saskatchewan, Canada"
+
       );
+
 
     const response =
       await fetch(url);
 
+
     const data =
       await response.json();
 
-    if (!data.length) {
+
+    if (
+      !data.length
+    ) {
 
       status(
         "Address not found."
       );
 
       return;
+
     }
 
+
     const lat =
-      parseFloat(data[0].lat);
+      Number(
+        data[0].lat
+      );
+
 
     const lng =
-      parseFloat(data[0].lon);
+      Number(
+        data[0].lon
+      );
+
 
     map.flyTo({
-      center: [lng, lat],
+
+      center: [
+        lng,
+        lat
+      ],
+
       zoom: 18,
-      duration: 700
+
+      duration: 650
+
     });
 
-    showBlock(lat, lng);
+
+    showBlock(
+      lat,
+      lng
+    );
 
   } catch {
 
     status(
-      "Search error."
+      "Search failed."
     );
+
   }
+
 }
 
 
-/* =========================================================
+document
+  .getElementById(
+    "searchBtn"
+  )
+  .addEventListener(
+
+    "click",
+
+    searchPlace
+
+  );
+
+
+document
+  .getElementById(
+    "searchBox"
+  )
+  .addEventListener(
+
+    "keydown",
+
+    event => {
+
+      if (
+        event.key ===
+        "Enter"
+      ) {
+
+        searchPlace();
+
+      }
+
+    }
+
+  );
+
+
+/* =====================================================
    GPS ARROW
-========================================================= */
+===================================================== */
 
 function createGpsArrow() {
 
   const wrapper =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
+
 
   wrapper.className =
     "drive-arrow";
 
+
   const arrow =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
+
 
   arrow.className =
     "drive-arrow-inner";
 
-  wrapper.appendChild(arrow);
+
+  wrapper.appendChild(
+    arrow
+  );
+
 
   return wrapper;
+
 }
 
 
@@ -931,10 +1672,14 @@ function updateGpsMarker(
   heading
 ) {
 
-  if (!gpsMarker) {
+  if (
+    !gpsMarker
+  ) {
 
     gpsMarker =
+
       new maplibregl.Marker({
+
         element:
           createGpsArrow(),
 
@@ -943,167 +1688,269 @@ function updateGpsMarker(
 
         pitchAlignment:
           "map"
+
       })
-      .setLngLat([lng, lat])
+
+      .setLngLat([
+        lng,
+        lat
+      ])
+
       .addTo(map);
+
   }
 
+
   gpsMarker
-    .setLngLat([lng, lat])
-    .setRotation(heading);
+
+    .setLngLat([
+      lng,
+      lat
+    ])
+
+    .setRotation(
+      heading || 0
+    );
+
 }
 
 
-/* =========================================================
-   SINGLE GPS LOCATION
-========================================================= */
+/* =====================================================
+   ACCURATE GPS
+===================================================== */
 
 document
-  .getElementById("gpsBtn")
+  .getElementById(
+    "gpsBtn"
+  )
   .addEventListener(
+
     "click",
-    getAccurateLocation
+
+    getAccurateGPS
+
   );
 
 
-function getAccurateLocation() {
+function getAccurateGPS() {
 
-  if (!navigator.geolocation) {
+  if (
+    !navigator.geolocation
+  ) {
 
     status(
       "GPS not supported."
     );
 
     return;
+
   }
+
 
   status(
     "Getting accurate GPS..."
   );
 
+
   let best = null;
 
   let readings = 0;
 
+
   const watcher =
-    navigator.geolocation.watchPosition(
 
-      position => {
+    navigator.geolocation
+      .watchPosition(
 
-        readings++;
+        position => {
 
-        if (
-          !best ||
-          position.coords.accuracy <
-          best.coords.accuracy
-        ) {
+          readings++;
 
-          best = position;
-        }
 
-        status(
-          `GPS accuracy: ±${
-            Math.round(
+          if (
+            !best ||
+            position.coords.accuracy <
+            best.coords.accuracy
+          ) {
+
+            best =
+              position;
+
+          }
+
+
+          status(
+
+            `Improving GPS...<br>` +
+
+            `Accuracy ±${Math.round(
               position.coords.accuracy
-            )
-          } m`
-        );
+            )} m`
 
-
-        if (
-          position.coords.accuracy <= 8 ||
-          readings >= 7
-        ) {
-
-          navigator.geolocation
-            .clearWatch(watcher);
-
-          const lat =
-            best.coords.latitude;
-
-          const lng =
-            best.coords.longitude;
-
-          updateGpsMarker(
-            lng,
-            lat,
-            0
           );
 
-          map.flyTo({
-            center: [lng, lat],
-            zoom: 18,
-            duration: 500
-          });
 
-          showBlock(lat, lng);
+          if (
+
+            position.coords.accuracy <= 8 ||
+
+            readings >= 8
+
+          ) {
+
+            navigator.geolocation
+              .clearWatch(
+                watcher
+              );
+
+
+            const lat =
+              best.coords.latitude;
+
+
+            const lng =
+              best.coords.longitude;
+
+
+            updateGpsMarker(
+
+              lng,
+
+              lat,
+
+              0
+
+            );
+
+
+            map.flyTo({
+
+              center: [
+                lng,
+                lat
+              ],
+
+              zoom: 18,
+
+              duration: 500
+
+            });
+
+
+            showBlock(
+              lat,
+              lng
+            );
+
+          }
+
+        },
+
+
+        () => {
+
+          status(
+            "Please allow precise location."
+          );
+
+        },
+
+
+        {
+
+          enableHighAccuracy:
+            true,
+
+          maximumAge:
+            0,
+
+          timeout:
+            15000
+
         }
-      },
 
-      error => {
+      );
 
-        status(
-          "Location permission is required."
-        );
-      },
-
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000
-      }
-    );
 }
 
 
-/* =========================================================
-   GOOGLE-MAPS STYLE DRIVE FOLLOW
-========================================================= */
+/* =====================================================
+   DRIVE MODE
+===================================================== */
 
 document
-  .getElementById("followBtn")
+  .getElementById(
+    "followBtn"
+  )
   .addEventListener(
+
     "click",
-    toggleFollowMode
+
+    () => {
+
+      if (
+        followMode
+      ) {
+
+        stopDrive();
+
+      } else {
+
+        startDrive();
+
+      }
+
+    }
+
   );
 
 
-function toggleFollowMode() {
+function startDrive() {
 
-  if (followMode) {
-    stopFollowMode();
-  } else {
-    startFollowMode();
-  }
-}
-
-
-function startFollowMode() {
-
-  if (!navigator.geolocation) {
+  if (
+    !navigator.geolocation
+  ) {
 
     status(
       "GPS not supported."
     );
 
     return;
+
   }
 
-  followMode = true;
+
+  followMode =
+    true;
+
+
+  setMenu(false);
+
 
   document
-    .getElementById("followBtn")
-    .classList.add("active");
+    .getElementById(
+      "followBtn"
+    )
+    .classList.add(
+      "active"
+    );
+
 
   document
-    .getElementById("followBtn")
+    .getElementById(
+      "followBtn"
+    )
     .textContent =
       "🚗 Stop Drive";
 
+
   document
-    .getElementById("driveInfo")
+    .getElementById(
+      "driveInfo"
+    )
     .style.display =
       "block";
+
 
   status(
     "Drive mode starting..."
@@ -1111,560 +1958,883 @@ function startFollowMode() {
 
 
   followWatchId =
-    navigator.geolocation.watchPosition(
 
-      position => {
+    navigator.geolocation
+      .watchPosition(
 
-        const lat =
-          position.coords.latitude;
+        position => {
 
-        const lng =
-          position.coords.longitude;
-
-        const accuracy =
-          position.coords.accuracy;
+          const lat =
+            position.coords.latitude;
 
 
-        let heading =
-          position.coords.heading;
+          const lng =
+            position.coords.longitude;
 
 
-        /*
-          Many phones return null heading
-          while standing still.
-          When moving, calculate it from
-          previous GPS positions.
-        */
+          let heading =
+            position.coords.heading;
 
-        if (
-          heading == null ||
-          isNaN(heading)
-        ) {
 
-          if (lastGps) {
+          if (
 
-            const moved =
-              distanceMetres(
-                lastGps,
-                { lat, lng }
+            heading == null ||
+
+            Number.isNaN(
+              heading
+            )
+
+          ) {
+
+            if (
+              lastGps
+            ) {
+
+              const moved =
+
+                distanceMetres(
+
+                  lastGps,
+
+                  {
+                    lat,
+                    lng
+                  }
+
+                );
+
+
+              if (
+                moved >= 2
+              ) {
+
+                heading =
+
+                  calculateBearing(
+
+                    lastGps,
+
+                    {
+                      lat,
+                      lng
+                    }
+
+                  );
+
+              }
+
+            }
+
+          }
+
+
+          if (
+
+            heading != null &&
+
+            !Number.isNaN(
+              heading
+            )
+
+          ) {
+
+            lastHeading =
+              heading;
+
+          }
+
+
+          updateGpsMarker(
+
+            lng,
+
+            lat,
+
+            lastHeading
+
+          );
+
+
+          map.easeTo({
+
+            center: [
+              lng,
+              lat
+            ],
+
+            zoom:
+              Math.max(
+                map.getZoom(),
+                17
+              ),
+
+            bearing:
+              lastHeading,
+
+            duration:
+              450,
+
+            padding: {
+
+              top:
+                80,
+
+              bottom:
+                180,
+
+              left:
+                20,
+
+              right:
+                20
+
+            }
+
+          });
+
+
+          let speed =
+            position.coords.speed;
+
+
+          let speedKmh =
+            null;
+
+
+          if (
+            speed != null
+          ) {
+
+            speedKmh =
+
+              Math.max(
+                0,
+                speed * 3.6
               );
 
-            if (moved >= 2) {
-
-              heading =
-                calculateBearing(
-                  lastGps,
-                  { lat, lng }
-                );
-            }
           }
-        }
 
 
-        if (
-          heading != null &&
-          !isNaN(heading)
-        ) {
+          document
+            .getElementById(
+              "driveInfo"
+            )
+            .innerHTML =
 
-          lastHeading =
-            heading;
-        }
+            (
+              speedKmh == null
+                ? ""
+                : `${speedKmh.toFixed(0)} km/h • `
+            )
+
+            +
+
+            `GPS ±${Math.round(
+              position.coords.accuracy
+            )} m`;
 
 
-        updateGpsMarker(
-          lng,
-          lat,
-          lastHeading
-        );
+          lastGps = {
+            lat,
+            lng
+          };
+
+        },
 
 
-        /*
-          Keep user lower on screen,
-          similar to navigation apps.
-        */
+        () => {
 
-        map.easeTo({
+          status(
+            "Please allow precise location."
+          );
 
-          center:
-            [lng, lat],
+          stopDrive();
 
-          zoom:
-            Math.max(
-              map.getZoom(),
-              17
-            ),
+        },
 
-          bearing:
-            lastHeading,
 
-          pitch:
+        {
+
+          enableHighAccuracy:
+            true,
+
+          maximumAge:
             0,
 
-          duration:
-            500,
+          timeout:
+            15000
 
-          padding: {
-            top: 100,
-            bottom: 180,
-            left: 20,
-            right: 20
-          }
-        });
+        }
 
+      );
 
-        const speed =
-          position.coords.speed;
-
-
-        const speedKmh =
-          speed != null
-            ? Math.max(0, speed * 3.6)
-            : null;
-
-
-        document
-          .getElementById("driveInfo")
-          .innerHTML =
-
-          (
-            speedKmh != null
-              ? `${speedKmh.toFixed(0)} km/h • `
-              : ""
-          ) +
-
-          `GPS ±${Math.round(accuracy)} m`;
-
-
-        lastGps =
-          { lat, lng };
-      },
-
-      error => {
-
-        status(
-          "Please allow precise location."
-        );
-
-        stopFollowMode();
-      },
-
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000
-      }
-    );
 }
 
 
-function stopFollowMode() {
+function stopDrive() {
 
-  followMode = false;
+  followMode =
+    false;
 
-  if (followWatchId != null) {
+
+  if (
+    followWatchId != null
+  ) {
 
     navigator.geolocation
-      .clearWatch(followWatchId);
+      .clearWatch(
+        followWatchId
+      );
 
-    followWatchId = null;
+
+    followWatchId =
+      null;
+
   }
 
-  document
-    .getElementById("followBtn")
-    .classList.remove("active");
 
   document
-    .getElementById("followBtn")
+    .getElementById(
+      "followBtn"
+    )
+    .classList.remove(
+      "active"
+    );
+
+
+  document
+    .getElementById(
+      "followBtn"
+    )
     .textContent =
       "🚗 Start Drive";
 
+
   document
-    .getElementById("driveInfo")
+    .getElementById(
+      "driveInfo"
+    )
     .style.display =
       "none";
+
 
   status(
     "Drive mode stopped."
   );
+
 }
 
 
-/* =========================================================
-   MANUAL DRAW ROUTE
-========================================================= */
+/* =====================================================
+   ROUTE LINE HELPER
+===================================================== */
 
-function ensureLineSource(
+function setLine(
   id,
   points,
   color,
-  opacity = .55,
-  width = 6,
+  opacity = .5,
+  width = 7,
   dash = null
 ) {
 
-  const geojson = {
-    type: "Feature",
-    geometry: {
-      type: "LineString",
-      coordinates:
-        points.map(
-          p => [p.lng, p.lat]
-        )
-    }
-  };
-
-
-  if (map.getSource(id)) {
-
-    map
-      .getSource(id)
-      .setData(geojson);
-
+  if (
+    points.length < 2
+  ) {
     return;
   }
 
 
-  map.addSource(id, {
-    type: "geojson",
-    data: geojson
-  });
+  const data = {
 
+    type:
+      "Feature",
 
-  const paint = {
-    "line-color": color,
-    "line-width": width,
-    "line-opacity": opacity
+    geometry: {
+
+      type:
+        "LineString",
+
+      coordinates:
+
+        points.map(
+
+          point => [
+
+            point.lng,
+
+            point.lat
+
+          ]
+
+        )
+
+    }
+
   };
 
 
-  if (dash) {
-    paint["line-dasharray"] = dash;
+  if (
+    map.getSource(id)
+  ) {
+
+    map
+      .getSource(id)
+      .setData(data);
+
+    return;
+
+  }
+
+
+  map.addSource(
+
+    id,
+
+    {
+
+      type:
+        "geojson",
+
+      data
+
+    }
+
+  );
+
+
+  const paint = {
+
+    "line-color":
+      color,
+
+    "line-width":
+      width,
+
+    "line-opacity":
+      opacity
+
+  };
+
+
+  if (
+    dash
+  ) {
+
+    paint[
+      "line-dasharray"
+    ] = dash;
+
   }
 
 
   map.addLayer({
-    id: id,
-    type: "line",
-    source: id,
+
+    id,
+
+    type:
+      "line",
+
+    source:
+      id,
+
     layout: {
-      "line-join": "round",
-      "line-cap": "round"
+
+      "line-join":
+        "round",
+
+      "line-cap":
+        "round"
+
     },
+
     paint
+
   });
+
 }
 
 
-function removeLine(id) {
+function removeLine(
+  id
+) {
 
-  if (map.getLayer(id)) {
+  if (
+    map.getLayer(id)
+  ) {
+
     map.removeLayer(id);
+
   }
 
-  if (map.getSource(id)) {
+
+  if (
+    map.getSource(id)
+  ) {
+
     map.removeSource(id);
+
   }
+
 }
 
 
-document
-  .getElementById("drawBtn")
-  .addEventListener(
-    "click",
-    () => {
-
-      drawing = true;
-
-      drawPoints = [];
-
-      removeLine("drawRoute");
-
-      status(
-        "Draw mode ON. Tap points on the map."
-      );
-    }
-  );
-
-
-function addDrawPoint(lat, lng) {
-
-  drawPoints.push({
-    lat,
-    lng
-  });
-
-  ensureLineSource(
-    "drawRoute",
-    drawPoints,
-    selectedColor(),
-    .5,
-    7
-  );
-
-  status(
-    `Drawing... ${
-      (
-        routeDistance(drawPoints) /
-        1000
-      ).toFixed(2)
-    } km`
-  );
-}
-
+/* =====================================================
+   DRAW ROUTE
+===================================================== */
 
 document
-  .getElementById("finishDrawBtn")
+  .getElementById(
+    "drawBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
-      drawing = false;
-
-      if (drawPoints.length < 2) {
-
-        alert(
-          "Draw at least two points."
-        );
-
-        return;
-      }
-
-      let name =
-        prompt(
-          "Name this route:"
-        );
-
-      if (!name) {
-
-        name =
-          "Drawn Route";
-      }
-
-      saveRoute(
-        name,
-        drawPoints,
-        selectedColor()
-      );
-
-      status(
-        `${name} saved to old routes.`
-      );
-    }
-  );
+      drawing =
+        true;
 
 
-document
-  .getElementById("clearDrawBtn")
-  .addEventListener(
-    "click",
-    () => {
+      drawPoints =
+        [];
 
-      drawing = false;
-
-      drawPoints = [];
 
       removeLine(
         "drawRoute"
       );
 
+
+      setMenu(false);
+
+
       status(
-        "Draw route cleared."
+        "Draw mode ON. Tap points on map."
       );
+
     }
+
   );
 
 
-/* =========================================================
-   GPS RECORDING
-========================================================= */
+function addDrawPoint(
+  lat,
+  lng
+) {
+
+  drawPoints.push({
+
+    lat,
+
+    lng
+
+  });
+
+
+  setLine(
+
+    "drawRoute",
+
+    drawPoints,
+
+    selectedColor(),
+
+    .45,
+
+    7
+
+  );
+
+
+  status(
+
+    `Drawing • ${(
+      routeDistance(
+        drawPoints
+      ) / 1000
+    ).toFixed(2)} km`
+
+  );
+
+}
+
 
 document
-  .getElementById("recordBtn")
+  .getElementById(
+    "finishDrawBtn"
+  )
   .addEventListener(
+
     "click",
+
+    () => {
+
+      drawing =
+        false;
+
+
+      if (
+        drawPoints.length < 2
+      ) {
+
+        alert(
+          "Draw at least 2 points."
+        );
+
+        return;
+
+      }
+
+
+      let name =
+        prompt(
+          "Route name:"
+        );
+
+
+      if (
+        !name
+      ) {
+
+        name =
+          "Drawn Route";
+
+      }
+
+
+      saveRoute(
+
+        name,
+
+        drawPoints,
+
+        selectedColor()
+
+      );
+
+
+      status(
+
+        `${name} saved.<br>` +
+
+        `Distance: ${(
+          routeDistance(
+            drawPoints
+          ) / 1000
+        ).toFixed(2)} km`
+
+      );
+
+    }
+
+  );
+
+
+document
+  .getElementById(
+    "clearDrawBtn"
+  )
+  .addEventListener(
+
+    "click",
+
+    () => {
+
+      drawing =
+        false;
+
+
+      drawPoints =
+        [];
+
+
+      removeLine(
+        "drawRoute"
+      );
+
+
+      status(
+        "Draw route cleared."
+      );
+
+    }
+
+  );
+
+
+/* =====================================================
+   GPS RECORDING
+===================================================== */
+
+document
+  .getElementById(
+    "recordBtn"
+  )
+  .addEventListener(
+
+    "click",
+
     startRecording
+
   );
 
 
 function startRecording() {
 
-  if (!navigator.geolocation) {
+  if (
+    !navigator.geolocation
+  ) {
+
+    status(
+      "GPS not supported."
+    );
+
     return;
+
   }
 
-  if (recordingWatchId != null) {
 
-    navigator.geolocation
-      .clearWatch(
-        recordingWatchId
-      );
-  }
+  recordedPoints =
+    [];
 
-  recordedPoints = [];
 
-  recording = true;
+  recording =
+    true;
 
-  recordingPaused = false;
+
+  recordingPaused =
+    false;
+
 
   removeLine(
-    "recordedRoute"
+    "recordRoute"
   );
 
 
+  setMenu(false);
+
+
   recordingWatchId =
-    navigator.geolocation.watchPosition(
 
-      position => {
+    navigator.geolocation
+      .watchPosition(
 
-        if (
-          !recording ||
-          recordingPaused
-        ) {
-          return;
-        }
+        position => {
 
-        /*
-          Ignore very poor GPS
-          so random jumps don't ruin route
-        */
+          if (
 
-        if (
-          position.coords.accuracy >
-          45
-        ) {
-          return;
-        }
+            !recording ||
 
-        const point = {
+            recordingPaused
 
-          lat:
-            position.coords.latitude,
+          ) {
 
-          lng:
-            position.coords.longitude
-        };
-
-
-        /*
-          Ignore tiny GPS jitter
-        */
-
-        const previous =
-          recordedPoints[
-            recordedPoints.length - 1
-          ];
-
-        if (previous) {
-
-          const moved =
-            distanceMetres(
-              previous,
-              point
-            );
-
-          if (moved < 1.5) {
             return;
+
           }
-        }
 
 
-        recordedPoints.push(
-          point
-        );
+          if (
+            position.coords.accuracy >
+            45
+          ) {
+
+            return;
+
+          }
 
 
-        ensureLineSource(
-          "recordedRoute",
-          recordedPoints,
-          selectedColor(),
-          .55,
-          7
-        );
+          const point = {
+
+            lat:
+              position.coords.latitude,
+
+            lng:
+              position.coords.longitude
+
+          };
 
 
-        status(
-          `Recording • ${
-            (
+          const previous =
+
+            recordedPoints[
+              recordedPoints.length - 1
+            ];
+
+
+          if (
+            previous
+          ) {
+
+            const moved =
+
+              distanceMetres(
+
+                previous,
+
+                point
+
+              );
+
+
+            if (
+              moved < 1.5
+            ) {
+
+              return;
+
+            }
+
+          }
+
+
+          recordedPoints.push(
+            point
+          );
+
+
+          setLine(
+
+            "recordRoute",
+
+            recordedPoints,
+
+            selectedColor(),
+
+            .55,
+
+            7
+
+          );
+
+
+          status(
+
+            `Recording • ${(
               routeDistance(
                 recordedPoints
               ) / 1000
-            ).toFixed(2)
-          } km • GPS ±${
-            Math.round(
+            ).toFixed(2)} km` +
+
+            `<br>GPS ±${Math.round(
               position.coords.accuracy
-            )
-          } m`
-        );
-      },
+            )} m`
 
-      () => {
+          );
 
-        status(
-          "GPS recording error."
-        );
-      },
+        },
 
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000
-      }
-    );
+
+        () => {
+
+          status(
+            "Recording GPS error."
+          );
+
+        },
+
+
+        {
+
+          enableHighAccuracy:
+            true,
+
+          maximumAge:
+            0,
+
+          timeout:
+            15000
+
+        }
+
+      );
 
 
   status(
     "Recording started."
   );
+
 }
 
 
 document
-  .getElementById("pauseBtn")
+  .getElementById(
+    "pauseBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
-      if (!recording) {
+      if (
+        !recording
+      ) {
         return;
       }
 
-      recordingPaused = true;
+
+      recordingPaused =
+        true;
+
 
       status(
         "Recording paused."
       );
+
     }
+
   );
 
 
 document
-  .getElementById("resumeBtn")
+  .getElementById(
+    "resumeBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
-      if (!recording) {
+      if (
+        !recording
+      ) {
         return;
       }
 
-      recordingPaused = false;
+
+      recordingPaused =
+        false;
+
 
       status(
         "Recording resumed."
       );
+
     }
+
   );
 
 
 document
-  .getElementById("stopBtn")
+  .getElementById(
+    "stopBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
-      recording = false;
+      recording =
+        false;
 
-      recordingPaused = false;
+
+      recordingPaused =
+        false;
+
 
       if (
         recordingWatchId != null
@@ -1675,26 +2845,38 @@ document
             recordingWatchId
           );
 
-        recordingWatchId = null;
+
+        recordingWatchId =
+          null;
+
       }
 
+
       status(
-        `Recording stopped • ${
-          (
-            routeDistance(
-              recordedPoints
-            ) / 1000
-          ).toFixed(2)
-        } km`
+
+        `Recording stopped.<br>` +
+
+        `Distance: ${(
+          routeDistance(
+            recordedPoints
+          ) / 1000
+        ).toFixed(2)} km`
+
       );
+
     }
+
   );
 
 
 document
-  .getElementById("saveBtn")
+  .getElementById(
+    "saveBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
       if (
@@ -1706,48 +2888,65 @@ document
         );
 
         return;
+
       }
+
 
       const name =
         prompt(
           "Route name:"
         );
 
-      if (!name) {
+
+      if (
+        !name
+      ) {
         return;
       }
 
+
       saveRoute(
+
         name,
+
         recordedPoints,
+
         selectedColor()
+
       );
+
 
       status(
         `${name} saved.`
       );
+
     }
+
   );
 
 
-/* =========================================================
+/* =====================================================
    SAVED ROUTES
-========================================================= */
+===================================================== */
 
 function getRoutes() {
 
   try {
 
     return JSON.parse(
+
       localStorage.getItem(
         "faranRoutes"
       ) || "[]"
+
     );
 
   } catch {
 
     return [];
+
   }
+
 }
 
 
@@ -1760,6 +2959,7 @@ function saveRoute(
   const routes =
     getRoutes();
 
+
   routes.push({
 
     id:
@@ -1767,371 +2967,521 @@ function saveRoute(
 
     name,
 
+    color,
+
     date:
       new Date()
         .toLocaleString(),
 
-    color,
-
     points
+
   });
 
+
   localStorage.setItem(
+
     "faranRoutes",
-    JSON.stringify(routes)
+
+    JSON.stringify(
+      routes
+    )
+
   );
 
+
   refreshRoutes();
+
 }
 
 
 function refreshRoutes() {
 
   const selector =
+
     document.getElementById(
       "savedRoutes"
     );
 
+
   selector.innerHTML =
+
     '<option value="">Select old route</option>';
 
-  getRoutes().forEach(
-    route => {
 
-      const option =
-        document.createElement(
-          "option"
+  getRoutes()
+    .forEach(
+
+      route => {
+
+        const option =
+
+          document.createElement(
+            "option"
+          );
+
+
+        option.value =
+          route.id;
+
+
+        option.textContent =
+
+          route.name +
+
+          " • " +
+
+          route.date;
+
+
+        selector.appendChild(
+          option
         );
 
-      option.value =
-        route.id;
+      }
 
-      option.textContent =
-        route.name +
-        " • " +
-        route.date;
+    );
 
-      selector.appendChild(
-        option
-      );
-    }
-  );
 }
 
 
 document
-  .getElementById("loadRouteBtn")
+  .getElementById(
+    "loadRouteBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
       const id =
+
         Number(
+
           document
             .getElementById(
               "savedRoutes"
             )
             .value
+
         );
+
 
       if (!id) {
         return;
       }
 
+
       const route =
+
         getRoutes()
           .find(
-            r => r.id === id
+
+            item =>
+              item.id === id
+
           );
 
-      if (!route) {
+
+      if (
+        !route
+      ) {
         return;
       }
+
 
       removeLine(
         "oldRoute"
       );
 
-      loadedOldRoute =
-        route;
 
-      ensureLineSource(
+      setLine(
+
         "oldRoute",
+
         route.points,
+
         route.color,
+
         .38,
+
         9,
-        [2, 1.5]
+
+        [2,1.5]
+
       );
 
 
       const bounds =
+
         new maplibregl
           .LngLatBounds();
 
+
       route.points
         .forEach(
-          point =>
-            bounds.extend(
-              [
-                point.lng,
-                point.lat
-              ]
-            )
+
+          point => {
+
+            bounds.extend([
+
+              point.lng,
+
+              point.lat
+
+            ]);
+
+          }
+
         );
 
+
       map.fitBounds(
+
         bounds,
+
         {
-          padding: 60,
+
+          padding: 70,
+
           maxZoom: 17
+
         }
+
       );
 
+
       status(
-        `Old route "${route.name}" loaded. ` +
-        `You can record a new route while it stays visible.`
+        `Old route "${route.name}" loaded.`
       );
+
     }
+
   );
 
 
 document
-  .getElementById("hideRouteBtn")
+  .getElementById(
+    "hideRouteBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
       removeLine(
         "oldRoute"
       );
 
-      loadedOldRoute =
-        null;
 
       status(
         "Old route hidden."
       );
+
     }
+
   );
 
 
 document
-  .getElementById("deleteRouteBtn")
+  .getElementById(
+    "deleteRouteBtn"
+  )
   .addEventListener(
+
     "click",
+
     () => {
 
       const id =
+
         Number(
+
           document
             .getElementById(
               "savedRoutes"
             )
             .value
+
         );
 
-      if (!id) {
+
+      if (
+        !id
+      ) {
 
         alert(
-          "Select a route."
+          "Select a route first."
         );
 
         return;
+
       }
 
-      let routes =
-        getRoutes();
 
-      routes =
-        routes.filter(
-          route =>
-            route.id !== id
-        );
+      const routes =
+
+        getRoutes()
+          .filter(
+
+            route =>
+              route.id !== id
+
+          );
+
 
       localStorage.setItem(
+
         "faranRoutes",
-        JSON.stringify(routes)
+
+        JSON.stringify(
+          routes
+        )
+
       );
+
 
       removeLine(
         "oldRoute"
       );
 
+
       refreshRoutes();
+
 
       status(
         "Route deleted."
       );
+
     }
+
   );
 
 
-/* =========================================================
-   FIRE HYDRANTS
-========================================================= */
+/* =====================================================
+   SASKATOON HYDRANTS
+===================================================== */
 
 /*
-  ArcGIS point FeatureServer
+Real Saskatoon Water hydrant layer:
+
+Prod_SaskatoonWater
+FeatureServer layer 5
 */
 
 const HYDRANT_SERVICE =
-  "https://services5.arcgis.com/aqscDN0KMPbfyKhW/ArcGIS/rest/services/Fire_Hydrants/FeatureServer/1/query";
+
+  "https://services.arcgis.com/p3UBboyC0NH1uCie/ArcGIS/rest/services/Prod_SaskatoonWater/FeatureServer/5/query";
 
 
 const REPORT_HYDRANT_URL =
+
   "https://service.saskatoon.ca/site/saskatoon/request/cos_report_firehydrantissue";
 
 
 document
-  .getElementById("hydrantBtn")
+  .getElementById(
+    "hydrantBtn"
+  )
   .addEventListener(
+
     "click",
+
     async () => {
 
       hydrantsOn =
         !hydrantsOn;
 
-      const button =
-        document.getElementById(
-          "hydrantBtn"
-        );
 
-      button.classList.toggle(
-        "active",
-        hydrantsOn
-      );
+      if (
+        !hydrantsOn
+      ) {
 
-
-      if (!hydrantsOn) {
-
-        clearHydrants();
-
-        status(
-          "Hydrants hidden."
-        );
+        hideHydrants();
 
         return;
+
       }
 
 
-      button.textContent =
-        "🔥 Hydrants ON";
+      document
+        .getElementById(
+          "hydrantBtn"
+        )
+        .classList.add(
+          "active"
+        );
+
+
+      document
+        .getElementById(
+          "hydrantBtn"
+        )
+        .textContent =
+          "🔥 Hydrants ON";
+
 
       await loadHydrants();
+
     }
+
   );
 
 
-function clearHydrants() {
+function hideHydrants() {
 
-  hydrantMarkers
-    .forEach(
-      marker =>
-        marker.remove()
+  if (
+    map.getLayer(
+      "hydrant-points"
+    )
+  ) {
+
+    map.removeLayer(
+      "hydrant-points"
     );
 
-  hydrantMarkers = [];
+  }
 
-  document
-    .getElementById(
-      "hydrantBtn"
+
+  if (
+    map.getSource(
+      "hydrants"
     )
-    .textContent =
-      "🔥 Hydrants";
+  ) {
+
+    map.removeSource(
+      "hydrants"
+    );
+
+  }
+
+
+  hydrantsOn =
+    false;
+
+
+  const button =
+
+    document.getElementById(
+      "hydrantBtn"
+    );
+
+
+  button.classList.remove(
+    "active"
+  );
+
+
+  button.textContent =
+    "🔥 Hydrants";
+
+
+  status(
+    "Hydrants hidden."
+  );
+
 }
 
 
 async function loadHydrants() {
 
-  if (!hydrantsOn) {
+  if (
+    !hydrantsOn
+  ) {
     return;
   }
 
+
   status(
-    "Loading nearby hydrants..."
+    "Loading Saskatoon hydrants..."
   );
-
-
-  clearHydrants();
-
-  hydrantsOn = true;
-
-  document
-    .getElementById(
-      "hydrantBtn"
-    )
-    .classList.add(
-      "active"
-    );
-
-  document
-    .getElementById(
-      "hydrantBtn"
-    )
-    .textContent =
-      "🔥 Hydrants ON";
 
 
   const bounds =
     map.getBounds();
 
 
-  const bbox =
-    [
+  const geometry = {
+
+    xmin:
       bounds.getWest(),
+
+    ymin:
       bounds.getSouth(),
+
+    xmax:
       bounds.getEast(),
-      bounds.getNorth()
-    ].join(",");
+
+    ymax:
+      bounds.getNorth(),
+
+    spatialReference: {
+      wkid: 4326
+    }
+
+  };
 
 
   const params =
+
     new URLSearchParams({
 
       where:
         "1=1",
 
       geometry:
-        bbox,
+        JSON.stringify(
+          geometry
+        ),
 
       geometryType:
         "esriGeometryEnvelope",
 
-      inSR:
-        "4326",
-
       spatialRel:
         "esriSpatialRelIntersects",
 
-      outFields:
-        "HYDRANTID,FACILITYID,LOCDESC,OPERABLE,INSPECTDT",
-
-      returnGeometry:
-        "true",
+      inSR:
+        "4326",
 
       outSR:
         "4326",
 
+      outFields:
+        "*",
+
+      returnGeometry:
+        "true",
+
       f:
         "geojson"
+
     });
 
 
   try {
 
     const response =
+
       await fetch(
+
         HYDRANT_SERVICE +
+
         "?" +
+
         params.toString()
+
       );
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
+
       throw new Error(
-        "Hydrant service error"
+        "Hydrant service request failed"
       );
+
     }
 
 
@@ -2139,177 +3489,450 @@ async function loadHydrants() {
       await response.json();
 
 
+    if (
+      data.error
+    ) {
+
+      console.error(
+        data.error
+      );
+
+
+      throw new Error(
+        data.error.message ||
+        "ArcGIS error"
+      );
+
+    }
+
+
     const features =
       data.features || [];
 
 
-    for (
-      const feature
-      of features
+    if (
+      map.getSource(
+        "hydrants"
+      )
     ) {
 
-      if (
-        feature.geometry?.type
-        !== "Point"
-      ) {
-        continue;
-      }
-
-
-      const [
-        lng,
-        lat
-      ] =
-        feature.geometry.coordinates;
-
-
-      const properties =
-        feature.properties || {};
-
-
-      const element =
-        document.createElement(
-          "div"
-        );
-
-      element.className =
-        "hydrant-marker";
-
-      element.textContent =
-        "H";
-
-
-      const popup =
-        new maplibregl.Popup({
-          offset: 18
-        })
-        .setHTML(
-          `<strong>🔥 Fire Hydrant</strong><br>` +
-
-          (
-            properties.HYDRANTID
-              ? `ID: ${properties.HYDRANTID}<br>`
-              : ""
-          ) +
-
-          (
-            properties.LOCDESC
-              ? `Location: ${properties.LOCDESC}<br>`
-              : ""
-          ) +
-
-          (
-            properties.OPERABLE
-              ? `Operable: ${properties.OPERABLE}<br>`
-              : ""
-          ) +
-
-          `<br>` +
-
-          `<a href="${REPORT_HYDRANT_URL}" target="_blank">Report hydrant issue</a>`
-        );
-
-
-      const hydrantMarker =
-        new maplibregl.Marker({
-          element
-        })
-        .setLngLat(
-          [lng, lat]
+      map
+        .getSource(
+          "hydrants"
         )
-        .setPopup(
-          popup
-        )
-        .addTo(
-          map
-        );
+        .setData(data);
 
+    } else {
 
-      hydrantMarkers.push(
-        hydrantMarker
+      map.addSource(
+
+        "hydrants",
+
+        {
+
+          type:
+            "geojson",
+
+          data
+
+        }
+
       );
+
+
+      map.addLayer({
+
+        id:
+          "hydrant-points",
+
+        type:
+          "circle",
+
+        source:
+          "hydrants",
+
+        paint: {
+
+          "circle-radius":
+            [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              13, 3,
+              15, 5,
+              17, 7,
+              19, 9
+            ],
+
+          "circle-color":
+            "#e53935",
+
+          "circle-stroke-color":
+            "#ffffff",
+
+          "circle-stroke-width":
+            2,
+
+          "circle-opacity":
+            0.95
+
+        }
+
+      });
+
+
+      map.on(
+
+        "mouseenter",
+
+        "hydrant-points",
+
+        () => {
+
+          map.getCanvas()
+            .style.cursor =
+              "pointer";
+
+        }
+
+      );
+
+
+      map.on(
+
+        "mouseleave",
+
+        "hydrant-points",
+
+        () => {
+
+          map.getCanvas()
+            .style.cursor =
+              "";
+
+        }
+
+      );
+
+
+      map.on(
+
+        "click",
+
+        "hydrant-points",
+
+        event => {
+
+          event.originalEvent
+            .stopPropagation();
+
+
+          const feature =
+            event.features?.[0];
+
+
+          if (
+            !feature
+          ) {
+            return;
+          }
+
+
+          const p =
+            feature.properties || {};
+
+
+          const coordinates =
+
+            feature.geometry
+              .coordinates
+              .slice();
+
+
+          const node =
+
+            p.WMNODENO ??
+
+            p.WM_NODE_NO ??
+
+            p.NODE_NO ??
+
+            p.FACILITYID ??
+
+            "Unknown";
+
+
+          const statusValue =
+
+            p.STATUS ??
+
+            p.Status ??
+
+            "Unknown";
+
+
+          const typeValue =
+
+            p.HYDRANT_TYPE ??
+
+            p.HYDRANTTYPE ??
+
+            p.TYPE ??
+
+            "Unknown";
+
+
+          const yearValue =
+
+            p.YEAR_CONSTRUCTED ??
+
+            p.YEARCONSTRUCTED ??
+
+            p.INSTALL_YEAR ??
+
+            "Unknown";
+
+
+          const enabledValue =
+
+            p.Enabled ??
+
+            p.ENABLED ??
+
+            null;
+
+
+          let enabledText =
+            "Unknown";
+
+
+          if (
+            enabledValue === 1 ||
+            enabledValue === "1" ||
+            enabledValue === true
+          ) {
+
+            enabledText =
+              "Yes";
+
+          } else if (
+
+            enabledValue === 0 ||
+            enabledValue === "0" ||
+            enabledValue === false
+
+          ) {
+
+            enabledText =
+              "No";
+
+          }
+
+
+          new maplibregl.Popup({
+
+            offset: 12,
+
+            closeButton: true
+
+          })
+
+          .setLngLat(
+            coordinates
+          )
+
+          .setHTML(
+
+            `<strong>🔥 Fire Hydrant</strong><br><br>` +
+
+            `Node #: ${node}<br>` +
+
+            `Status: ${statusValue}<br>` +
+
+            `Type: ${typeValue}<br>` +
+
+            `Year: ${yearValue}<br>` +
+
+            `Enabled: ${enabledText}<br><br>` +
+
+            `<a href="${REPORT_HYDRANT_URL}" target="_blank" rel="noopener">Report Hydrant Issue</a>`
+
+          )
+
+          .addTo(map);
+
+        }
+
+      );
+
     }
 
 
     status(
+
       `${features.length} hydrants loaded in this map area.`
+
     );
 
-
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
+      "Hydrant error:",
       error
     );
 
+
     status(
-      "Hydrant data could not be loaded right now."
+
+      "Could not load hydrants. Try zooming into Saskatoon and press Hydrants again."
+
     );
+
   }
+
 }
 
 
-/*
-  Refresh hydrants when user
-  moves to another part of city
-*/
+/* reload hydrants after moving */
 
-let hydrantRefreshTimer =
+let hydrantTimer =
   null;
 
 
 map.on(
+
   "moveend",
+
   () => {
 
-    if (!hydrantsOn) {
+    if (
+      !hydrantsOn
+    ) {
       return;
     }
 
+
     clearTimeout(
-      hydrantRefreshTimer
+      hydrantTimer
     );
 
-    hydrantRefreshTimer =
+
+    hydrantTimer =
+
       setTimeout(
+
         loadHydrants,
-        500
+
+        450
+
       );
+
   }
+
 );
 
 
-/* =========================================================
-   AUTO START LOCATION
-========================================================= */
+/* =====================================================
+   STARTUP
+===================================================== */
 
 map.on(
+
   "load",
+
   () => {
 
     refreshRoutes();
 
+
     status(
-      "Map ready. Requesting your location..."
+      "Map ready."
     );
 
-
-    /*
-      Try automatically.
-      If browser requires interaction,
-      user can press Start Drive.
-    */
 
     setTimeout(
+
       () => {
 
-        startFollowMode();
+        if (
+          navigator.geolocation
+        ) {
+
+          navigator.geolocation
+            .getCurrentPosition(
+
+              position => {
+
+                const lat =
+                  position.coords.latitude;
+
+
+                const lng =
+                  position.coords.longitude;
+
+
+                updateGpsMarker(
+
+                  lng,
+
+                  lat,
+
+                  0
+
+                );
+
+
+                map.flyTo({
+
+                  center: [
+                    lng,
+                    lat
+                  ],
+
+                  zoom: 16,
+
+                  duration: 600
+
+                });
+
+              },
+
+              () => {
+
+                /* no problem if permission not given */
+
+              },
+
+              {
+
+                enableHighAccuracy:
+                  true,
+
+                timeout:
+                  8000,
+
+                maximumAge:
+                  30000
+
+              }
+
+            );
+
+        }
 
       },
+
       700
+
     );
+
   }
+
 );
+
 </script>
+
 </body>
 </html>
