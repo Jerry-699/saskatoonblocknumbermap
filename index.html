@@ -376,6 +376,44 @@
         ) 0 0 / 8px 8px;
     }
 
+    /* Floating Route Drive pause/play control */
+    #routePauseOverlay {
+      position: absolute;
+      left: 50%;
+      bottom: 92px;
+      transform: translateX(-50%);
+      z-index: 70;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .22s ease;
+    }
+
+    #routePauseOverlay.show {
+      display: flex;
+      opacity: 1;
+    }
+
+    #routePauseOverlay button {
+      pointer-events: auto;
+      min-width: 118px;
+      min-height: 48px;
+      border: 0;
+      border-radius: 24px;
+      background: rgba(20,20,20,.90);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      box-shadow: 0 3px 12px rgba(0,0,0,.35);
+    }
+
+    body.dark #routePauseOverlay button {
+      background: rgba(245,245,245,.94);
+      color: #111;
+    }
+
     /* Drive information */
     #driveInfo {
       position: absolute;
@@ -469,13 +507,17 @@
 
     <div class="controls" id="routeDriveControls" style="display:none;">
       <button id="routeDriveBtn">🛣️ Drive Route</button>
-      <button id="pausePlayBtn" style="display:none;">⏸ Pause</button>
     </div>
 
     <div id="status">Select a route or use Drive for normal driving.</div>
   </div>
 
-  <div id="driveInfo"></div></div>
+  <div id="driveInfo"></div>
+
+  <div id="routePauseOverlay" aria-hidden="true">
+    <button id="pausePlayBtn">⏸ Pause</button>
+  </div>
+
   <div id="credit">Saskatoon Block Finder • Made by Faran</div>
 </div>
 
@@ -565,6 +607,7 @@ let selectedRoute = null;
 let driveTracePoints = [];
 let driveTracePaused = false;
 let driveModeType = null; // "casual" or "route"
+let routePauseHideTimer = null;
 
 /* =========================
    BASIC HELPERS
@@ -658,6 +701,37 @@ function resetNorth() {
     pitch: 0,
     duration: 350
   });
+}
+
+function showRoutePauseOverlay() {
+  if (
+    !followMode ||
+    driveModeType !== "route"
+  ) {
+    return;
+  }
+
+  const overlay =
+    document.getElementById("routePauseOverlay");
+
+  overlay.classList.add("show");
+  overlay.setAttribute("aria-hidden", "false");
+
+  clearTimeout(routePauseHideTimer);
+
+  routePauseHideTimer =
+    setTimeout(
+      () => hideRoutePauseOverlay(),
+      2600
+    );
+}
+
+function hideRoutePauseOverlay() {
+  const overlay =
+    document.getElementById("routePauseOverlay");
+
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
 }
 
 compassRose.addEventListener("click", resetNorth);
@@ -829,11 +903,92 @@ async function showBlock(lat, lng) {
   });
 }
 
-map.on("click", event => {
+let lastMapTapTime = 0;
+let lastMapTapPoint = null;
+
+function closeAddressMarker() {
   if (addressMarker) {
     addressMarker.remove();
     addressMarker = null;
     status("Location label closed.");
+    return true;
+  }
+
+  return false;
+}
+
+/*
+  Single tap:
+  - During Route Drive, show Pause/Play briefly.
+  - Otherwise do nothing, so accidental touches do not open addresses.
+*/
+map.on("click", event => {
+  if (
+    followMode &&
+    driveModeType === "route"
+  ) {
+    showRoutePauseOverlay();
+  }
+
+  /*
+    Manual double-tap detection for phones.
+    MapLibre's dblclick works well with a mouse,
+    but mobile double-tap is handled here too.
+  */
+  const now = Date.now();
+
+  if (
+    lastMapTapTime &&
+    now - lastMapTapTime <= 350 &&
+    lastMapTapPoint
+  ) {
+    const dx =
+      event.point.x -
+      lastMapTapPoint.x;
+
+    const dy =
+      event.point.y -
+      lastMapTapPoint.y;
+
+    const distance =
+      Math.sqrt(
+        dx * dx +
+        dy * dy
+      );
+
+    if (distance <= 32) {
+      lastMapTapTime = 0;
+      lastMapTapPoint = null;
+
+      if (closeAddressMarker()) {
+        return;
+      }
+
+      showBlock(
+        event.lngLat.lat,
+        event.lngLat.lng
+      );
+
+      return;
+    }
+  }
+
+  lastMapTapTime = now;
+  lastMapTapPoint = {
+    x: event.point.x,
+    y: event.point.y
+  };
+});
+
+/*
+  Desktop double-click.
+  Prevent default double-click zoom so the action
+  is used for the address/block lookup instead.
+*/
+map.doubleClickZoom.disable();
+
+map.on("dblclick", event => {
+  if (closeAddressMarker()) {
     return;
   }
 
@@ -1118,12 +1273,12 @@ function prepareDrive(mode) {
   if (mode === "route") {
     routeDriveBtn.classList.add("active");
     routeDriveBtn.textContent = "⏹ Stop Route";
-    pausePlayBtn.style.display = "inline-block";
     pausePlayBtn.textContent = "⏸ Pause";
+    showRoutePauseOverlay();
   } else {
     routeDriveBtn.classList.remove("active");
     routeDriveBtn.textContent = "🛣️ Drive Route";
-    pausePlayBtn.style.display = "none";
+    hideRoutePauseOverlay();
   }
 
   return true;
@@ -1352,7 +1507,7 @@ function stopDrive() {
   routeDriveBtn.classList.remove("active");
   routeDriveBtn.textContent = "🛣️ Drive Route";
 
-  document.getElementById("pausePlayBtn").style.display = "none";
+  hideRoutePauseOverlay();
   document.getElementById("driveInfo").style.display = "none";
 
   driveTracePaused = false;
@@ -1401,6 +1556,8 @@ document
           ? "Route tracking paused."
           : `Route tracking resumed for "${selectedRoute.name}".`
       );
+
+      showRoutePauseOverlay();
     }
   );
 
@@ -1651,16 +1808,12 @@ document
       const routeDriveBtn =
         document.getElementById("routeDriveBtn");
 
-      const pausePlayBtn =
-        document.getElementById("pausePlayBtn");
-
       if (route) {
         routeControls.style.display = "flex";
         routeDriveBtn.style.display = "inline-block";
-        pausePlayBtn.style.display = "none";
       } else {
         routeControls.style.display = "none";
-        pausePlayBtn.style.display = "none";
+        hideRoutePauseOverlay();
 
         if (driveModeType === "route") {
           stopDrive();
