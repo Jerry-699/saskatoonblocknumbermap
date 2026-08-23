@@ -117,6 +117,25 @@
       margin-bottom: 7px;
     }
 
+    .route-row {
+      display: block;
+    }
+
+    #savedRoutes {
+      width: 100%;
+      min-height: 46px;
+      font-weight: 700;
+    }
+
+    #driveRouteControls {
+      margin-top: 4px;
+    }
+
+    #pausePlayBtn {
+      min-width: 110px;
+      font-weight: 700;
+    }
+
     button, select, input {
       box-sizing: border-box;
       min-height: 42px;
@@ -392,56 +411,23 @@
     <h2>Saskatoon Block Finder</h2>
 
     <div class="controls">
-      <button id="followBtn">🚗 Start Drive</button>
+      <button id="followBtn">🚗 Drive</button>
       <button id="gpsBtn">📍 GPS</button>
       <button id="darkBtn">🌙 Night</button>
-      <button id="northBtn">🧭 North</button>
-    </div>
-
-    <div class="controls">
       <button id="hydrantBtn">🔥 Hydrants</button>
     </div>
 
-    <div class="controls">
-      <button id="drawBtn">✏️ Draw</button>
-      <button id="finishDrawBtn">✅ Finish + Save</button>
-      <button id="clearDrawBtn">🗑 Clear</button>
-    </div>
-
-    <div class="controls">
-      <select id="routeColor">
-        <option value="#2196f3">Blue</option>
-        <option value="#f44336">Red</option>
-        <option value="#4caf50">Green</option>
-        <option value="#ff9800">Orange</option>
-        <option value="#9c27b0">Purple</option>
-        <option value="#00bcd4">Cyan</option>
-      </select>
-    </div>
-
-    <div class="controls">
-      <button id="recordBtn">🔴 Record</button>
-      <button id="pauseBtn">⏸ Pause</button>
-      <button id="resumeBtn">▶ Resume</button>
-      <button id="stopBtn">⏹ Stop</button>
-      <button id="saveBtn">💾 Save</button>
-    </div>
-
-    <div class="controls">
+    <div class="controls route-row">
       <select id="savedRoutes">
-        <option value="">Select old route</option>
+        <option value="">Select route</option>
       </select>
-      <button id="loadRouteBtn">Show Route</button>
-      <button id="hideRouteBtn">Hide Route</button>
-      <button id="deleteRouteBtn">Delete Route</button>
     </div>
 
-    <div class="controls">
-      <input id="searchBox" placeholder="Search Saskatoon street/address">
-      <button id="searchBtn">Search</button>
+    <div class="controls" id="driveRouteControls" style="display:none;">
+      <button id="pausePlayBtn">⏸ Pause</button>
     </div>
 
-    <div id="status">Tap a street to find its block.</div>
+    <div id="status">Select a route or tap a street.</div>
   </div>
 
   <div id="driveInfo"></div>
@@ -522,14 +508,6 @@ let lastGps = null;
 let lastHeading = 0;
 let lastDriveMapUpdate = 0;
 
-let drawing = false;
-let drawPoints = [];
-
-let recording = false;
-let recordingPaused = false;
-let recordingWatchId = null;
-let recordedPoints = [];
-
 let hydrantsOn = false;
 let blockCache = new Map();
 let hydrantReloadTimer = null;
@@ -537,6 +515,10 @@ let driveHydrantReloadTime = 0;
 
 let routeStartMarker = null;
 let routeFinishMarker = null;
+
+let selectedRoute = null;
+let driveTracePoints = [];
+let driveTracePaused = false;
 
 /* =========================
    BASIC HELPERS
@@ -636,8 +618,6 @@ function resetNorth() {
 }
 
 compassRose.addEventListener("click", resetNorth);
-document.getElementById("northBtn").addEventListener("click", resetNorth);
-
 /* =========================
    NIGHT MODE
 ========================= */
@@ -807,14 +787,6 @@ async function showBlock(lat, lng) {
 }
 
 map.on("click", event => {
-  if (drawing) {
-    addDrawPoint(
-      event.lngLat.lat,
-      event.lngLat.lng
-    );
-    return;
-  }
-
   showBlock(
     event.lngLat.lat,
     event.lngLat.lng
@@ -1043,138 +1015,306 @@ function startDrive() {
   lastHeading = map.getBearing() || 0;
   lastDriveMapUpdate = 0;
 
+  driveTracePaused = false;
+  clearLiveDriveTrace();
+
   setMenu(false);
 
-  document.getElementById("followBtn").classList.add("active");
-  document.getElementById("followBtn").textContent = "🚗 Stop Drive";
-  document.getElementById("driveInfo").style.display = "block";
+  document
+    .getElementById("followBtn")
+    .classList.add("active");
 
-  status("Drive mode started.");
+  document
+    .getElementById("followBtn")
+    .textContent = "⏹ Stop Drive";
 
-  followWatchId = navigator.geolocation.watchPosition(
-    position => {
-      if (!followMode) return;
+  document
+    .getElementById("driveInfo")
+    .style.display = "block";
 
-      const now = Date.now();
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const accuracy = position.coords.accuracy;
-      const speed = position.coords.speed;
+  const driveControls =
+    document.getElementById("driveRouteControls");
 
-      let heading = position.coords.heading;
+  const pausePlayBtn =
+    document.getElementById("pausePlayBtn");
 
-      /*
-        When the browser does not give a reliable heading,
-        calculate the direction from the last GPS point.
-      */
-      if ((heading == null || Number.isNaN(heading)) && lastGps) {
-        const moved = distanceMetres(lastGps, { lat, lng });
+  if (selectedRoute) {
+    driveControls.style.display = "flex";
+    pausePlayBtn.textContent = "⏸ Pause";
+  } else {
+    driveControls.style.display = "none";
+  }
 
-        if (moved >= 3) {
-          heading = calculateBearing(lastGps, { lat, lng });
-        }
-      }
+  status(
+    selectedRoute
+      ? `Driving on "${selectedRoute.name}". Blue line shows where you actually drive.`
+      : "Drive mode started."
+  );
 
-      /*
-        Smooth turns and always use the shortest rotation path.
-        Ignore tiny heading changes that make the map shake.
-      */
-      if (heading != null && !Number.isNaN(heading)) {
-        const difference = ((heading - lastHeading + 540) % 360) - 180;
+  followWatchId =
+    navigator.geolocation.watchPosition(
+      position => {
+        if (!followMode) return;
 
-        if (Math.abs(difference) > 1.5) {
-          lastHeading = (lastHeading + difference * 0.42 + 360) % 360;
-        }
-      }
+        const now = Date.now();
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        const speed = position.coords.speed;
 
-      /*
-        The arrow is VIEWPORT aligned and stays pointing toward
-        the top of the phone. The map rotates underneath it.
-      */
-      smoothGpsMarkerTo(lng, lat, 850);
+        let heading =
+          position.coords.heading;
 
-      /*
-        Smooth map movement instead of jumpTo(). New GPS fixes
-        blend into the previous camera animation, which removes
-        the stop/start "game lag" look.
-      */
-      if (now - lastDriveMapUpdate > 300) {
-        lastDriveMapUpdate = now;
+        const currentPoint = {
+          lat,
+          lng
+        };
 
-        let zoom = 17.1;
+        if (
+          (
+            heading == null ||
+            Number.isNaN(heading)
+          ) &&
+          lastGps
+        ) {
+          const moved =
+            distanceMetres(
+              lastGps,
+              currentPoint
+            );
 
-        if (speed != null) {
-          const kmh = Math.max(0, speed * 3.6);
-
-          if (kmh > 85) {
-            zoom = 15.9;
-          } else if (kmh > 55) {
-            zoom = 16.25;
-          } else if (kmh > 30) {
-            zoom = 16.65;
+          if (moved >= 2.5) {
+            heading =
+              calculateBearing(
+                lastGps,
+                currentPoint
+              );
           }
         }
 
-        map.easeTo({
-          center: [lng, lat],
-          bearing: lastHeading,
-          zoom,
-          pitch: 0,
-          duration: 850,
-          easing: t => 1 - Math.pow(1 - t, 3)
-        });
+        if (
+          heading != null &&
+          !Number.isNaN(heading)
+        ) {
+          const difference =
+            (
+              (
+                heading -
+                lastHeading +
+                540
+              ) % 360
+            ) - 180;
+
+          lastHeading =
+            (
+              lastHeading +
+              difference * 0.22 +
+              360
+            ) % 360;
+        }
+
+        /*
+          Arrow faces forward.
+          Map rotates underneath it.
+        */
+        updateGpsMarker(
+          lng,
+          lat,
+          0
+        );
+
+        /*
+          While a route is selected, draw the actual driven path
+          in bright blue over the red route.
+        */
+        if (
+          selectedRoute &&
+          !driveTracePaused &&
+          accuracy <= 50
+        ) {
+          const previous =
+            driveTracePoints[
+              driveTracePoints.length - 1
+            ];
+
+          if (
+            !previous ||
+            distanceMetres(
+              previous,
+              currentPoint
+            ) >= 1.5
+          ) {
+            driveTracePoints.push(
+              currentPoint
+            );
+
+            setLine(
+              "liveDriveTrace",
+              driveTracePoints,
+              "#1689ff",
+              .95,
+              6.5,
+              null
+            );
+          }
+        }
+
+        /*
+          Smoothly move the camera instead of jumping.
+          GPS itself only updates periodically, so interpolate
+          the camera between readings.
+        */
+        if (
+          now - lastDriveMapUpdate > 650
+        ) {
+          lastDriveMapUpdate = now;
+
+          let zoom = 17.2;
+
+          if (speed != null) {
+            const kmh =
+              speed * 3.6;
+
+            if (kmh > 80) {
+              zoom = 15.9;
+            } else if (kmh > 50) {
+              zoom = 16.3;
+            } else if (kmh > 25) {
+              zoom = 16.8;
+            }
+          }
+
+          map.easeTo({
+            center: [lng, lat],
+            bearing: lastHeading,
+            zoom,
+            pitch: 0,
+            duration: 700,
+            easing: t =>
+              1 - Math.pow(1 - t, 3)
+          });
+        }
+
+        let speedKmh =
+          null;
+
+        if (speed != null) {
+          speedKmh =
+            Math.max(
+              0,
+              speed * 3.6
+            );
+        }
+
+        document
+          .getElementById("driveInfo")
+          .innerHTML =
+            (
+              speedKmh == null
+                ? ""
+                : `${speedKmh.toFixed(0)} km/h • `
+            ) +
+            `GPS ±${Math.round(accuracy)} m`;
+
+        if (
+          hydrantsOn &&
+          now - driveHydrantReloadTime >
+          20000
+        ) {
+          driveHydrantReloadTime = now;
+          loadHydrants();
+        }
+
+        lastGps =
+          currentPoint;
+      },
+      error => {
+        console.error(
+          "Drive GPS error:",
+          error
+        );
+
+        status(
+          "Please allow precise location."
+        );
+
+        stopDrive();
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 250,
+        timeout: 15000
       }
-
-      let speedKmh = null;
-
-      if (speed != null) {
-        speedKmh = Math.max(0, speed * 3.6);
-      }
-
-      document.getElementById("driveInfo").innerHTML =
-        (speedKmh == null ? "" : `${speedKmh.toFixed(0)} km/h • `) +
-        `GPS ±${Math.round(accuracy)} m`;
-
-      /* Hydrants refresh slowly while driving to keep performance smooth. */
-      if (hydrantsOn && now - driveHydrantReloadTime > 20000) {
-        driveHydrantReloadTime = now;
-        loadHydrants();
-      }
-
-      lastGps = { lat, lng };
-    },
-    error => {
-      console.error("Drive GPS error:", error);
-      status("Please allow precise location.");
-      stopDrive();
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 250,
-      timeout: 15000
-    }
-  );
+    );
 }
+
 
 function stopDrive() {
   followMode = false;
 
-  if (gpsMarkerAnimation) {
-    cancelAnimationFrame(gpsMarkerAnimation);
-    gpsMarkerAnimation = null;
-  }
-
   if (followWatchId != null) {
-    navigator.geolocation.clearWatch(followWatchId);
+    navigator.geolocation.clearWatch(
+      followWatchId
+    );
+
     followWatchId = null;
   }
 
-  document.getElementById("followBtn").classList.remove("active");
-  document.getElementById("followBtn").textContent = "🚗 Start Drive";
-  document.getElementById("driveInfo").style.display = "none";
+  document
+    .getElementById("followBtn")
+    .classList.remove("active");
 
-  status("Drive mode stopped.");
+  document
+    .getElementById("followBtn")
+    .textContent = "🚗 Drive";
+
+  document
+    .getElementById("driveInfo")
+    .style.display = "none";
+
+  document
+    .getElementById("driveRouteControls")
+    .style.display = "none";
+
+  driveTracePaused = false;
+
+  status(
+    selectedRoute
+      ? `Drive stopped. Route "${selectedRoute.name}" is still showing.`
+      : "Drive mode stopped."
+  );
 }
+
+
+/* Pause / Play only controls the blue driven trace.
+   GPS/map following continues so you can still see yourself moving. */
+document
+  .getElementById("pausePlayBtn")
+  .addEventListener(
+    "click",
+    () => {
+      if (!followMode || !selectedRoute) {
+        return;
+      }
+
+      driveTracePaused =
+        !driveTracePaused;
+
+      document
+        .getElementById("pausePlayBtn")
+        .textContent =
+          driveTracePaused
+            ? "▶ Play"
+            : "⏸ Pause";
+
+      status(
+        driveTracePaused
+          ? "Blue route tracing paused."
+          : "Blue route tracing resumed."
+      );
+    }
+  );
+
 
 /* =========================
    ROUTE LINE HELPERS
@@ -1243,199 +1383,6 @@ function removeLine(id) {
     map.removeSource(id);
   }
 }
-
-/* =========================
-   DRAW ROUTE
-========================= */
-
-document.getElementById("drawBtn").addEventListener("click", () => {
-  drawing = true;
-  drawPoints = [];
-
-  removeLine("drawRoute");
-  setMenu(false);
-
-  status("Draw mode ON. Tap points on map.");
-});
-
-function addDrawPoint(lat, lng) {
-  drawPoints.push({ lat, lng });
-
-  setLine(
-    "drawRoute",
-    drawPoints,
-    selectedColor(),
-    .45,
-    7
-  );
-
-  status(
-    `Drawing • ${(routeDistance(drawPoints) / 1000).toFixed(2)} km`
-  );
-}
-
-document.getElementById("finishDrawBtn").addEventListener("click", () => {
-  drawing = false;
-
-  if (drawPoints.length < 2) {
-    alert("Draw at least 2 points.");
-    return;
-  }
-
-  let name = prompt("Route name:");
-
-  if (!name) {
-    name = "Drawn Route";
-  }
-
-  saveRoute(
-    name,
-    drawPoints,
-    selectedColor()
-  );
-
-  status(
-    `${name} saved.<br>` +
-    `Distance: ${(routeDistance(drawPoints) / 1000).toFixed(2)} km`
-  );
-});
-
-document.getElementById("clearDrawBtn").addEventListener("click", () => {
-  drawing = false;
-  drawPoints = [];
-
-  removeLine("drawRoute");
-
-  status("Draw route cleared.");
-});
-
-/* =========================
-   GPS ROUTE RECORDING
-========================= */
-
-document.getElementById("recordBtn").addEventListener("click", startRecording);
-
-function startRecording() {
-  if (!navigator.geolocation) {
-    status("GPS not supported.");
-    return;
-  }
-
-  if (recordingWatchId != null) {
-    navigator.geolocation.clearWatch(recordingWatchId);
-    recordingWatchId = null;
-  }
-
-  recordedPoints = [];
-  recording = true;
-  recordingPaused = false;
-
-  removeLine("recordRoute");
-  setMenu(false);
-
-  recordingWatchId =
-    navigator.geolocation.watchPosition(
-      position => {
-        if (!recording || recordingPaused) {
-          return;
-        }
-
-        if (position.coords.accuracy > 45) {
-          return;
-        }
-
-        const point = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-
-        const previous =
-          recordedPoints[
-            recordedPoints.length - 1
-          ];
-
-        if (
-          previous &&
-          distanceMetres(previous, point) < 1.5
-        ) {
-          return;
-        }
-
-        recordedPoints.push(point);
-
-        setLine(
-          "recordRoute",
-          recordedPoints,
-          selectedColor(),
-          .55,
-          7
-        );
-
-        status(
-          `Recording • ${(routeDistance(recordedPoints) / 1000).toFixed(2)} km` +
-          `<br>GPS ±${Math.round(position.coords.accuracy)} m`
-        );
-      },
-      () => {
-        status("Recording GPS error.");
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000
-      }
-    );
-
-  status("Recording started.");
-}
-
-document.getElementById("pauseBtn").addEventListener("click", () => {
-  if (!recording) return;
-
-  recordingPaused = true;
-  status("Recording paused.");
-});
-
-document.getElementById("resumeBtn").addEventListener("click", () => {
-  if (!recording) return;
-
-  recordingPaused = false;
-  status("Recording resumed.");
-});
-
-document.getElementById("stopBtn").addEventListener("click", () => {
-  recording = false;
-  recordingPaused = false;
-
-  if (recordingWatchId != null) {
-    navigator.geolocation.clearWatch(recordingWatchId);
-    recordingWatchId = null;
-  }
-
-  status(
-    `Recording stopped.<br>` +
-    `Distance: ${(routeDistance(recordedPoints) / 1000).toFixed(2)} km`
-  );
-});
-
-document.getElementById("saveBtn").addEventListener("click", () => {
-  if (recordedPoints.length < 2) {
-    alert("No route to save.");
-    return;
-  }
-
-  const name = prompt("Route name:");
-
-  if (!name) return;
-
-  saveRoute(
-    name,
-    recordedPoints,
-    selectedColor()
-  );
-
-  status(`${name} saved.`);
-});
 
 /* =========================
    ROUTE START / FINISH
@@ -1528,36 +1475,28 @@ function refreshRoutes() {
     document.getElementById("savedRoutes");
 
   selector.innerHTML =
-    '<option value="">Select old route</option>';
+    '<option value="">Select route</option>';
 
-  /* Built-in GPX routes first */
   BUILTIN_ROUTES.forEach(route => {
     const option =
       document.createElement("option");
 
     option.value = route.id;
     option.textContent = route.name;
-
     selector.appendChild(option);
   });
 
-  /* User recorded/drawn routes */
   getRoutes().forEach(route => {
     const option =
       document.createElement("option");
 
     option.value = `user-${route.id}`;
-    option.textContent =
-      `${route.name} • ${route.date}`;
-
+    option.textContent = route.name;
     selector.appendChild(option);
   });
 }
 
-function getSelectedRoute() {
-  const value =
-    document.getElementById("savedRoutes").value;
-
+function getSelectedRouteByValue(value) {
   if (!value) {
     return null;
   }
@@ -1569,10 +1508,9 @@ function getSelectedRoute() {
   }
 
   if (value.startsWith("user-")) {
-    const id =
-      Number(
-        value.replace("user-", "")
-      );
+    const id = Number(
+      value.replace("user-", "")
+    );
 
     return getRoutes().find(
       route => route.id === id
@@ -1582,33 +1520,34 @@ function getSelectedRoute() {
   return null;
 }
 
-document.getElementById("loadRouteBtn").addEventListener("click", () => {
-  const route =
-    getSelectedRoute();
+function clearLiveDriveTrace() {
+  driveTracePoints = [];
+  removeLine("liveDriveTrace");
+}
 
-  if (!route) {
-    alert("Select a route first.");
-    return;
-  }
-
+function showSelectedRoute(route) {
   removeLine("oldRoute");
   clearRouteEndpointMarkers();
+  clearLiveDriveTrace();
+
+  selectedRoute = route;
+
+  if (!route) {
+    status("Route hidden.");
+    return;
+  }
 
   const isBuiltin =
     route.builtin === true;
 
-  /*
-    GPX routes use the bright red solid line
-    shown in your example screenshot.
-  */
   setLine(
     "oldRoute",
     route.points,
     isBuiltin
       ? "#ff1f0f"
       : (route.color || "#ff1f0f"),
-    isBuiltin ? .96 : .60,
-    isBuiltin ? 5.5 : 8,
+    .97,
+    isBuiltin ? 5.5 : 7,
     null
   );
 
@@ -1632,56 +1571,22 @@ document.getElementById("loadRouteBtn").addEventListener("click", () => {
     }
   );
 
-  status(
-    `Route "${route.name}" loaded.`
+  status(`Route "${route.name}" showing.`);
+}
+
+document
+  .getElementById("savedRoutes")
+  .addEventListener(
+    "change",
+    event => {
+      const route =
+        getSelectedRouteByValue(
+          event.target.value
+        );
+
+      showSelectedRoute(route);
+    }
   );
-});
-
-document.getElementById("hideRouteBtn").addEventListener("click", () => {
-  removeLine("oldRoute");
-  clearRouteEndpointMarkers();
-  status("Old route hidden.");
-});
-
-document.getElementById("deleteRouteBtn").addEventListener("click", () => {
-  const value =
-    document.getElementById("savedRoutes").value;
-
-  if (!value) {
-    alert("Select a route first.");
-    return;
-  }
-
-  if (value.startsWith("gpx-")) {
-    alert("This GPX route is built into the map and cannot be deleted here.");
-    return;
-  }
-
-  if (!value.startsWith("user-")) {
-    return;
-  }
-
-  const id =
-    Number(
-      value.replace("user-", "")
-    );
-
-  const routes =
-    getRoutes().filter(
-      route => route.id !== id
-    );
-
-  localStorage.setItem(
-    "faranRoutes",
-    JSON.stringify(routes)
-  );
-
-  removeLine("oldRoute");
-  clearRouteEndpointMarkers();
-  refreshRoutes();
-
-  status("Route deleted.");
-});
 
 
 /* =========================
