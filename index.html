@@ -24,6 +24,7 @@
     /* Make map transition smoothly between day/night */
     .maplibregl-canvas {
       transition: filter .22s ease;
+      will-change: transform, filter;
     }
 
     /* Night mode keeps the SAME detailed OSM tiles, but inverts them.
@@ -174,7 +175,7 @@
     /* Custom 4-direction compass */
     #compassRose {
       position: absolute;
-      top: 12px;
+      top: 118px;
       right: 12px;
       z-index: 60;
       width: 82px;
@@ -258,6 +259,7 @@
     /* GPS / driving arrow */
     .drive-arrow {
       width: 40px;
+      will-change: transform;
       height: 40px;
       display: flex;
       align-items: center;
@@ -328,6 +330,7 @@
 
     @media (max-width: 650px) {
       #compassRose {
+        top: 112px;
         width: 72px;
         height: 72px;
       }
@@ -861,8 +864,8 @@ function updateGpsMarker(lng, lat, heading) {
     gpsMarker =
       new maplibregl.Marker({
         element: createGpsArrow(),
-        rotationAlignment: "map",
-        pitchAlignment: "map"
+        rotationAlignment: "viewport",
+        pitchAlignment: "viewport"
       })
       .setLngLat([lng, lat])
       .addTo(map);
@@ -871,6 +874,49 @@ function updateGpsMarker(lng, lat, heading) {
   gpsMarker
     .setLngLat([lng, lat])
     .setRotation(heading || 0);
+}
+
+let gpsMarkerAnimation = null;
+let gpsDisplayPosition = null;
+
+function smoothGpsMarkerTo(lng, lat, duration = 850) {
+  if (!gpsMarker) {
+    updateGpsMarker(lng, lat, 0);
+    gpsDisplayPosition = { lng, lat };
+    return;
+  }
+
+  const start = gpsDisplayPosition || {
+    lng: gpsMarker.getLngLat().lng,
+    lat: gpsMarker.getLngLat().lat
+  };
+
+  const target = { lng, lat };
+  const started = performance.now();
+
+  if (gpsMarkerAnimation) {
+    cancelAnimationFrame(gpsMarkerAnimation);
+  }
+
+  function frame(now) {
+    const raw = Math.min(1, (now - started) / duration);
+    const t = 1 - Math.pow(1 - raw, 3);
+
+    const currentLng = start.lng + (target.lng - start.lng) * t;
+    const currentLat = start.lat + (target.lat - start.lat) * t;
+
+    gpsMarker.setLngLat([currentLng, currentLat]).setRotation(0);
+    gpsDisplayPosition = { lng: currentLng, lat: currentLat };
+
+    if (raw < 1 && followMode) {
+      gpsMarkerAnimation = requestAnimationFrame(frame);
+    } else {
+      gpsDisplayPosition = target;
+      gpsMarkerAnimation = null;
+    }
+  }
+
+  gpsMarkerAnimation = requestAnimationFrame(frame);
 }
 
 /* =========================
@@ -957,7 +1003,6 @@ function startDrive() {
     return;
   }
 
-  /* Do not create duplicate GPS watchers */
   if (followWatchId != null) {
     navigator.geolocation.clearWatch(followWatchId);
     followWatchId = null;
@@ -976,140 +1021,118 @@ function startDrive() {
 
   status("Drive mode started.");
 
-  followWatchId =
-    navigator.geolocation.watchPosition(
-      position => {
-        if (!followMode) return;
+  followWatchId = navigator.geolocation.watchPosition(
+    position => {
+      if (!followMode) return;
 
-        const now = Date.now();
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
-        const speed = position.coords.speed;
+      const now = Date.now();
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      const speed = position.coords.speed;
 
-        let heading = position.coords.heading;
+      let heading = position.coords.heading;
 
-        /*
-          Browser heading can be null.
-          When the car has moved enough,
-          calculate bearing using the last GPS position.
-        */
-        if (
-          (heading == null || Number.isNaN(heading)) &&
-          lastGps
-        ) {
-          const moved =
-            distanceMetres(
-              lastGps,
-              { lat, lng }
-            );
+      /*
+        When the browser does not give a reliable heading,
+        calculate the direction from the last GPS point.
+      */
+      if ((heading == null || Number.isNaN(heading)) && lastGps) {
+        const moved = distanceMetres(lastGps, { lat, lng });
 
-          if (moved >= 4) {
-            heading =
-              calculateBearing(
-                lastGps,
-                { lat, lng }
-              );
-          }
+        if (moved >= 3) {
+          heading = calculateBearing(lastGps, { lat, lng });
         }
+      }
 
-        /*
-          Smooth the direction so the map does not shake
-          from tiny GPS heading changes.
-        */
-        if (
-          heading != null &&
-          !Number.isNaN(heading)
-        ) {
-          const difference =
-            ((heading - lastHeading + 540) % 360) - 180;
+      /*
+        Smooth turns and always use the shortest rotation path.
+        Ignore tiny heading changes that make the map shake.
+      */
+      if (heading != null && !Number.isNaN(heading)) {
+        const difference = ((heading - lastHeading + 540) % 360) - 180;
 
-          lastHeading =
-            (
-              lastHeading +
-              difference * 0.30 +
-              360
-            ) % 360;
+        if (Math.abs(difference) > 1.5) {
+          lastHeading = (lastHeading + difference * 0.42 + 360) % 360;
         }
+      }
 
-        /*
-          Arrow stays facing UP.
-          The map rotates underneath it,
-          similar to navigation mode.
-        */
-        updateGpsMarker(lng, lat, 0);
+      /*
+        The arrow is VIEWPORT aligned and stays pointing toward
+        the top of the phone. The map rotates underneath it.
+      */
+      smoothGpsMarkerTo(lng, lat, 850);
 
-        /*
-          Throttle map updates to keep mobile stable.
-        */
-        if (
-          now - lastDriveMapUpdate > 900
-        ) {
-          lastDriveMapUpdate = now;
+      /*
+        Smooth map movement instead of jumpTo(). New GPS fixes
+        blend into the previous camera animation, which removes
+        the stop/start "game lag" look.
+      */
+      if (now - lastDriveMapUpdate > 300) {
+        lastDriveMapUpdate = now;
 
-          let zoom = 17;
-
-          if (speed != null) {
-            const kmh = speed * 3.6;
-
-            if (kmh > 80) {
-              zoom = 15.8;
-            } else if (kmh > 50) {
-              zoom = 16.2;
-            } else if (kmh > 25) {
-              zoom = 16.6;
-            }
-          }
-
-          map.jumpTo({
-            center: [lng, lat],
-            bearing: lastHeading,
-            zoom,
-            pitch: 0
-          });
-        }
-
-        let speedKmh = null;
+        let zoom = 17.1;
 
         if (speed != null) {
-          speedKmh = Math.max(0, speed * 3.6);
+          const kmh = Math.max(0, speed * 3.6);
+
+          if (kmh > 85) {
+            zoom = 15.9;
+          } else if (kmh > 55) {
+            zoom = 16.25;
+          } else if (kmh > 30) {
+            zoom = 16.65;
+          }
         }
 
-        document.getElementById("driveInfo").innerHTML =
-          (speedKmh == null
-            ? ""
-            : `${speedKmh.toFixed(0)} km/h • `) +
-          `GPS ±${Math.round(accuracy)} m`;
-
-        /*
-          Hydrants reload slowly during driving,
-          not on every GPS update.
-        */
-        if (
-          hydrantsOn &&
-          now - driveHydrantReloadTime > 15000
-        ) {
-          driveHydrantReloadTime = now;
-          loadHydrants();
-        }
-
-        lastGps = { lat, lng };
-      },
-      error => {
-        console.error("Drive GPS error:", error);
-        status("Please allow precise location.");
-        stopDrive();
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 500,
-        timeout: 15000
+        map.easeTo({
+          center: [lng, lat],
+          bearing: lastHeading,
+          zoom,
+          pitch: 0,
+          duration: 850,
+          easing: t => 1 - Math.pow(1 - t, 3)
+        });
       }
-    );
+
+      let speedKmh = null;
+
+      if (speed != null) {
+        speedKmh = Math.max(0, speed * 3.6);
+      }
+
+      document.getElementById("driveInfo").innerHTML =
+        (speedKmh == null ? "" : `${speedKmh.toFixed(0)} km/h • `) +
+        `GPS ±${Math.round(accuracy)} m`;
+
+      /* Hydrants refresh slowly while driving to keep performance smooth. */
+      if (hydrantsOn && now - driveHydrantReloadTime > 20000) {
+        driveHydrantReloadTime = now;
+        loadHydrants();
+      }
+
+      lastGps = { lat, lng };
+    },
+    error => {
+      console.error("Drive GPS error:", error);
+      status("Please allow precise location.");
+      stopDrive();
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 250,
+      timeout: 15000
+    }
+  );
 }
 
 function stopDrive() {
   followMode = false;
+
+  if (gpsMarkerAnimation) {
+    cancelAnimationFrame(gpsMarkerAnimation);
+    gpsMarkerAnimation = null;
+  }
 
   if (followWatchId != null) {
     navigator.geolocation.clearWatch(followWatchId);
