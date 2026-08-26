@@ -493,7 +493,7 @@
     <h2>Saskatoon Block Finder</h2>
 
     <div class="controls">
-      <button id="followBtn">🚗 Drive</button>
+      <button id="followBtn" title="Drive follows your location but keeps your chosen zoom">🚗 Drive</button>
       <button id="gpsBtn">📍 GPS</button>
       <button id="darkBtn">🌙 Night</button>
       <button id="hydrantBtn">🔥 Hydrants</button>
@@ -567,10 +567,6 @@ const map = new maplibregl.Map({
 });
 
 /* Keep zoom buttons, use our own 4-direction compass */
-/*
-  Zoom controls remain available during Drive / Drive Route.
-  Drive mode never overwrites the user's chosen zoom level.
-*/
 map.addControl(
   new maplibregl.NavigationControl({
     showCompass: false,
@@ -608,7 +604,7 @@ let routeStartMarker = null;
 let routeFinishMarker = null;
 
 let selectedRoute = null;
-let driveTracePoints = [];
+let driveTraceSegments = [[]];
 let driveTracePaused = false;
 let driveModeType = null; // "casual" or "route"
 let routePauseHideTimer = null;
@@ -1252,6 +1248,7 @@ function prepareDrive(mode) {
 
   if (mode === "route") {
     clearLiveDriveTrace();
+    driveTraceSegments = [[]];
   }
 
   setMenu(false);
@@ -1383,9 +1380,19 @@ function startDriveWatcher() {
           !driveTracePaused &&
           accuracy <= 50
         ) {
+          let currentSegment =
+            driveTraceSegments[
+              driveTraceSegments.length - 1
+            ];
+
+          if (!currentSegment) {
+            currentSegment = [];
+            driveTraceSegments.push(currentSegment);
+          }
+
           const previous =
-            driveTracePoints[
-              driveTracePoints.length - 1
+            currentSegment[
+              currentSegment.length - 1
             ];
 
           if (
@@ -1395,52 +1402,44 @@ function startDriveWatcher() {
               currentPoint
             ) >= 1.5
           ) {
-            driveTracePoints.push(
+            currentSegment.push(
               currentPoint
             );
 
-            setLine(
+            setMultiLine(
               "liveDriveTrace",
-              driveTracePoints,
+              driveTraceSegments,
               "#1689ff",
               .84,
-              4.8,
-              null
+              4.8
             );
           }
         }
 
         /*
-          DRIVE CAMERA
-
-          - Keep the blue arrow lower on the screen, like a navigation app.
-          - Follow the GPS position and driving direction.
-          - DO NOT set zoom here.
-          - Whatever zoom the user chooses with + / - stays in use.
-          - The user can change zoom at any time while driving.
+          Keep the blue arrow in a fixed lower-center position while driving.
+          IMPORTANT: we do NOT set zoom here.
+          Whatever zoom you choose with + / - stays exactly as you set it.
         */
         if (
           now - lastDriveMapUpdate > 650
         ) {
           lastDriveMapUpdate = now;
 
+          const arrowScreenOffsetY =
+            Math.min(
+              190,
+              Math.max(
+                115,
+                window.innerHeight * 0.17
+              )
+            );
+
           map.easeTo({
             center: [lng, lat],
-
-            /*
-              Positive Y moves the GPS/arrow lower on the screen,
-              leaving more map visible ahead of the vehicle.
-            */
-            offset: [0, 150],
-
             bearing: lastHeading,
             pitch: 0,
-
-            /*
-              No "zoom" property on purpose.
-              MapLibre keeps the user's current zoom level.
-            */
-
+            offset: [0, arrowScreenOffsetY],
             duration: 700,
             easing: t =>
               1 - Math.pow(1 - t, 3)
@@ -1548,8 +1547,23 @@ document
         return;
       }
 
+      const wasPaused =
+        driveTracePaused;
+
       driveTracePaused =
         !driveTracePaused;
+
+      /*
+        When resuming after a pause, begin a brand-new blue segment.
+        This prevents an ugly straight line connecting the pause point
+        to wherever you restarted.
+      */
+      if (
+        wasPaused &&
+        !driveTracePaused
+      ) {
+        driveTraceSegments.push([]);
+      }
 
       document
         .getElementById("pausePlayBtn")
@@ -1635,6 +1649,62 @@ function removeLine(id) {
   if (map.getSource(id)) {
     map.removeSource(id);
   }
+}
+
+
+function setMultiLine(
+  id,
+  segments,
+  color,
+  opacity = .84,
+  width = 4.8
+) {
+  const usableSegments =
+    segments
+      .filter(segment => segment.length >= 2)
+      .map(segment =>
+        segment.map(point => [
+          point.lng,
+          point.lat
+        ])
+      );
+
+  if (!usableSegments.length) {
+    return;
+  }
+
+  const data = {
+    type: "Feature",
+    geometry: {
+      type: "MultiLineString",
+      coordinates: usableSegments
+    }
+  };
+
+  if (map.getSource(id)) {
+    map.getSource(id).setData(data);
+    return;
+  }
+
+  map.addSource(id, {
+    type: "geojson",
+    data
+  });
+
+  map.addLayer({
+    id,
+    type: "line",
+    source: id,
+    layout: {
+      "line-join": "round",
+      "line-cap": "round"
+    },
+    paint: {
+      "line-color": color,
+      "line-width": width,
+      "line-opacity": opacity
+    }
+  });
 }
 
 /* =========================
@@ -1744,7 +1814,7 @@ function getSelectedRouteByValue(value) {
 }
 
 function clearLiveDriveTrace() {
-  driveTracePoints = [];
+  driveTraceSegments = [[]];
   removeLine("liveDriveTrace");
 }
 
