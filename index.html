@@ -567,6 +567,10 @@ const map = new maplibregl.Map({
 });
 
 /* Keep zoom buttons, use our own 4-direction compass */
+/*
+  Zoom controls remain available during Drive / Drive Route.
+  Drive mode never overwrites the user's chosen zoom level.
+*/
 map.addControl(
   new maplibregl.NavigationControl({
     showCompass: false,
@@ -1407,33 +1411,36 @@ function startDriveWatcher() {
         }
 
         /*
-          Both modes keep your GPS position centered.
-          Smooth camera movement avoids the game-like jumping.
+          DRIVE CAMERA
+
+          - Keep the blue arrow lower on the screen, like a navigation app.
+          - Follow the GPS position and driving direction.
+          - DO NOT set zoom here.
+          - Whatever zoom the user chooses with + / - stays in use.
+          - The user can change zoom at any time while driving.
         */
         if (
           now - lastDriveMapUpdate > 650
         ) {
           lastDriveMapUpdate = now;
 
-          let zoom = 17.2;
-
-          if (speed != null) {
-            const kmh = speed * 3.6;
-
-            if (kmh > 80) {
-              zoom = 15.9;
-            } else if (kmh > 50) {
-              zoom = 16.3;
-            } else if (kmh > 25) {
-              zoom = 16.8;
-            }
-          }
-
           map.easeTo({
             center: [lng, lat],
+
+            /*
+              Positive Y moves the GPS/arrow lower on the screen,
+              leaving more map visible ahead of the vehicle.
+            */
+            offset: [0, 150],
+
             bearing: lastHeading,
-            zoom,
             pitch: 0,
+
+            /*
+              No "zoom" property on purpose.
+              MapLibre keeps the user's current zoom level.
+            */
+
             duration: 700,
             easing: t =>
               1 - Math.pow(1 - t, 3)
